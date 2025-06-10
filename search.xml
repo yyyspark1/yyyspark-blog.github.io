@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Text</title>
+    <url>/2025/06/10/Test/</url>
+    <content><![CDATA[Test1!!!]]></content>
+      <categories>
+        <category>CTF</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Hello World</title>
     <url>/2025/06/10/hello-world/</url>
     <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
@@ -27,14 +35,6 @@ More info: Deployment
     <content><![CDATA[]]></content>
       <categories>
         <category>Python</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>Text</title>
-    <url>/2025/06/10/Test/</url>
-    <content><![CDATA[Test1!!!]]></content>
-      <categories>
-        <category>CTF</category>
       </categories>
   </entry>
 </search>
