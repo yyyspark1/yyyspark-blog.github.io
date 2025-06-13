@@ -1,64 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
-<search> 
-  
-  
-    
-    <entry>
-      <title>第三篇文章</title>
-      <link href="/2025/06/10/%E7%AC%AC%E4%B8%89%E7%AF%87%E6%96%87%E7%AB%A0/"/>
-      <url>/2025/06/10/%E7%AC%AC%E4%B8%89%E7%AF%87%E6%96%87%E7%AB%A0/</url>
-      
-        <content type="html"><![CDATA[]]></content>
-      
-      
+<search>
+  <entry>
+    <title>Hello World</title>
+    <url>/2025/06/10/hello-world/</url>
+    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
+Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
+
+More info: Writing
+Run server$ hexo server
+
+More info: Server
+Generate static files$ hexo generate
+
+More info: Generating
+Deploy to remote sites$ hexo deploy
+
+More info: Deployment
+]]></content>
       <categories>
-          
-          <category> Python </category>
-          
+        <category>Android逆向</category>
       </categories>
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>Hello World</title>
-      <link href="/2025/06/10/hello-world/"/>
-      <url>/2025/06/10/hello-world/</url>
-      
-        <content type="html"><![CDATA[<p>Welcome to <a href="https://hexo.io/">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p><h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">&quot;My New Post&quot;</span></span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/writing.html">Writing</a></p><h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/server.html">Server</a></p><h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/generating.html">Generating</a></p><h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>]]></content>
-      
-      
+  </entry>
+  <entry>
+    <title>第三篇文章</title>
+    <url>/2025/06/10/%E7%AC%AC%E4%B8%89%E7%AF%87%E6%96%87%E7%AB%A0/</url>
+    <content><![CDATA[]]></content>
       <categories>
-          
-          <category> Android开发 </category>
-          
+        <category>各类比赛WP</category>
       </categories>
-      
-      
-    </entry>
-    
-    
-    
-    <entry>
-      <title>Text</title>
-      <link href="/2025/06/10/Test/"/>
-      <url>/2025/06/10/Test/</url>
-      
-        <content type="html"><![CDATA[<h2 id="Test1"><a href="#Test1" class="headerlink" title="Test1!!!"></a>Test1!!!</h2>]]></content>
-      
-      
+  </entry>
+  <entry>
+    <title>初探Windows驱动逆向</title>
+    <url>/2025/06/10/%E5%88%9D%E6%8E%A2WIndows%E9%A9%B1%E5%8A%A8%E9%80%86%E5%90%91/</url>
+    <content><![CDATA[初探Windows逆向参考文章链接：
+Windows驱动快速入门
+Windows 驱动之IRP
+Windows驱动程序逆向工程方法
+Windows内核驱动程序静态逆向工程的方法论
+Windows驱动开发（三）—— 驱动和应用层通信的几种方式
+前置知识动因分析
+执行驱动程序分析时，收集以下信息很重要：
+识别DriverEntry并确定 IRP 调度处理程序。
+确定驱动程序是否附加到另一个设备以过滤&#x2F;拦截其 I&#x2F;O 请求。如果是这样，目标设备是什么？
+确定DeviceName.
+识别所有 IOCTL 代码及其相应的功能。确定他们使用什么缓冲方法。
+尝试了解所有部分是如何组合在一起的。
+
+Windows 驱动之IRP什么是IRP：I&#x2F;O request packets，简称IRP。即输入输出请求包。它是WINDOWS内核中的一种非常重要的数据结构。上层应用程序与底层驱动程序通信时，应用程序会发出I&#x2F;O请求。操作系统将相应的I&#x2F;O请求转换为相应的IRP。不同的IRP会根据类型被分派的不同的派遣历程中进行处理。
+作用：上层应用程序于底层驱动之间的通讯，即EXE程序和SYS之间的通讯。
+应用程序 想要访问内核数据，必须通过IRP数据。又叫IRP请求，当应用程序和驱动交互时，发送一个IRP请求，IRP会在各层设备驱动个之间来回传动和转发。
+符号链接和设备名windows下的设备是以”\Device[设备名]”形式命名的。
+例如磁盘分区的C盘，D盘的设备名称就是
+Text&quot;\Device\HarddiskVolume2”&quot;\Device\HarddiskVolume3”
+
+也可以不指定设备名称，那么I&#x2F;O管理器会自动分配一个数字作为设备的名称。例如
+Text&quot;\Device\00000001&quot;
+
+设备名不容易记忆。
+在驱动程序中，定义设备对象名称需要以L”\device\“开头，
+定义符号链接的名称需要以L”\dosDevices\“开头，（注意dosDevices中的最后一个字符是s，然后IoCreateSymbolicLink函数返回失败，半天找不到原因）；
+或者以L”\??\“开头也可以。
+符号链接可以理解为设备的别名，更重要的是，设备名只能被内核模式下的其他驱动所识别，而别名可以被用户模式下的应用程序识别。“C:”就是一个符号链接名。
+而在驱动中，符号链接名是这样写的：
+L”\??\c:”  —&gt; ??\c:L”\??\HelloDDK” —&gt;??\HelloDDKL”\DosDevices\HelloDDK”  —&gt; \DosDevices\HelloDDK
+在内核模式下，符号链接是以“??\”开头的，如C盘就是”??\C:”，
+在用户模式下，符号链接是以“\.\”开头的，如C盘就是”\.\C:”.
+因此在应用程序中，符号链接名：
+TextL&quot;\\\\.\\HelloDDK&quot;--&gt;\\.\HelloDDK
+
+在对驱动程序进行逆向工程时，当您看到这两个 API 被连续调用时，您可以确定您正在查看驱动程序中实例化设备和符号链接的部分。大多数情况下它只发生一次，因为大多数驱动程序只公开一个设备。
+R3和R0 的由来Intel的x86处理器是通过Ring级别来进行访问控制的，级别共分4层，从Ring0到Ring3（后面简称R0、R1、R2、R3）。R0层拥有最高的权限，R3层拥有最低的权限。按照Intel原有的构想，应用程序工作在R3层，只能访问R3层的数据；操作系统工作在R0层，可以访问所有层的数据；而其他驱动程序位于R1、R2层，每一层只能访问本层以及权限更低层的数据。
+这应该是很好的设计，这样操作系统工作在最核心层，没有其他代码可以修改它；其他驱动程序工作在R1、R2层，有要求则向R0层调用，这样可以有效保障操作系统的安全性。但现在的OS，包括Windows和Linux都没有采用4层权限，而只是使用2层——R0层和R3层，分别来存放操作系统数据和应用程序数据，从而导致一旦驱动加载了，就运行在R0层，就拥有了和操作系统同样的权限，可以做任何事情。
+驱动和应用层通信的几种方式目的在Windows系统中，驱动程序想要正常工作，往往离不开和用户态进程间的交互。因此，驱动和用户态进程的通信就成为了必不可少的手段。
+方式
+进程间通信
+
+由于Windows 操作系统中，内核线程运行于某个进程的地址空间中。因此，内核线程和用户进程的通信可以通过进程间通信的方式实现，例如文件映射、共享内存、管道等方式。
+
+I&#x2F;O请求
+
+通过实现IRP_MJ_READ、IRP_MJ_WRITE的请求，用户态进程直接通过设备读写的方式与驱动程序通信。
+驱动程序在接收到IRP时，根据具体需求选择直接返回数据；或者通过IoMarkIrpPending设置挂起状态，异步处理请求。
+Text将I/O请求转发到文件系统.过滤管理拦截请求按照循序A-B-C来调用已注册的微型过滤器,然后将 I/O 请求转发到下一个较低的驱动程序。文件系统驱动程序处理并转发修改后的请求。目标卷的存储驱动程序堆栈准备对硬件请求(HAL)。
+
+
+I&#x2F;O 控制
+
+通过调用DeviceIoControl发送设备控制代码，等待驱动层返回。
+从本质上来说，这种方式与通过IRP_MJ_READ、IRP_MJ_WRITE类似，都是通过封装IRP来实现。
+但是，DeviceIoControl允许用户自定义设备控制代码，使用上更加灵活。
+
+MiniFilter通信服务端口
+
+在微软的文件过滤器框架MiniFilter中，提供了一种独立的通信方式——CommunicationPort。
+// 驱动// 创建通信端口FltCreateCommunicationPort(pFilter, &amp;pServerPort, &amp;oa, NULL, ConnectNotifyCb, DisconnectNotifyCb, MessageNotifyCb, 1);// 发送消息FltSendMessage(pFilter, &amp;pClientPort,inbuffer, inlength, outbuffer, outlength, &amp;liTimeout);// 接收消息回调NTSTATUS MessageNotifyCb(  PVOID PortCookie,  PVOID InputBuffer,  ULONG InputBufferLength,  PVOID OutputBuffer,  ULONG OutputBufferLength,  PULONG ReturnOutputBufferLength)&#123;...&#125;// 关闭客户端连接FltCloseClientPort(pFilter, &amp;pClientPort);// 关闭端口FltCloseCommunicationPort(pServerPort);// 应用态// 连接通信端口FilterConnectCommunicationPort(c_sPortName, 0, NULL, 0, NULL, &amp;m_pConnectionPort);// 接收消息FilterGetMessage(m_pConnectionPort,lpMessageBuffer, dwMessageBufferSize, NULL);// 回复消息FilterReplyMessage(m_pConnectionPort, lpReplyBuffer, dwReplyBufferSize);// 发送消息FilterSendMessage(m_pConnectionPort, inbuffer, inlength, outbuffer, outlength, &amp;outlength);
+
+
+本地过程调用（LPC, Local Procedure Call）
+
+LPC 是 Windows 中的一种轻量级的进程间通信机制，允许在同一台计算机上的不同进程之间进行高效的消息传递。它主要用于用户模式与内核模式之间的交互。
+由于LPC是Windows系统内部使用的一种通信机制，微软没有提供任何的公开文档，因此在实际使用中可能存在一定风险。
+但是，相比于其他方式而言，LPC可以从驱动连接应用层创建的通信端口，使用上更为灵活。
+文件系统筛选器驱动程序（微筛选器）可截获发往某个文件系统或其他文件系统筛选器驱动程序的请求。
+驱动入口DriverEntry与C&#x2F;C++语言中的main()函数非常相似，驱动程序必须指定入口点DriverEntry。
+DriverEntry要负责很多工作，例如创建设备对象、创建用于与驱动程序和核心函数（IRP Handler、卸载函数、回调例程等）进行通信的符号链接。
+DriverEntry首先使用到IoCreateDevice()或IoCreateDeviceSecure()的调用来创建设备对象，后者通常用于将安全描述符应用于设备对象，以限制对本地管理员和NT AUTHORITYSYSTEM的访问。
+接下来，DriveEntry将IoCreateSymbolicLink()与先前创建的设备对象一起使用，以建立符号链接，该链接将允许用户模式进程与驱动程序进行通信。
+IRP HandlerIRP（I&#x2F;O Request Packet）处理程序是 Windows 驱动开发中最核心的组件之一，它负责处理所有进出驱动的 I&#x2F;O 请求。
+在几乎所有情况下，对我们来说最重要的主要函数是IRP_MJ_DEVICE_CONTROL，该函数用于发送请求，以从用户模式执行特定的内部函数。这些请求中包括一个IO控制代码，该代码负责通知驱动程序具体的操作，还包含一个向驱动程序发送数据和从驱动程序接收数据的缓冲区。
+列题2025-H&amp;NCTF-HNDRIVER先运行程序得到
+
+题⽬提供了个类似Base64的东西
+我们将exe文件反编译分析一下
+
+这里是将 Windows 用户层应用程序，用于与内核驱动程序进行通信，我们重点看 if 判断的那个函数，点进去一路追到函数sub_1400030F0
+
+这里看到函数FilterConnectCommunicationPort
+这个函数我在前置知识有说，是用来连接通信端口
+该函数具体参数如下
+FilterConnectCommunicationPort(  _In_ PCWSTR PortName,                 // 端口名称  _In_ ULONG Options,                   // 连接选项  _In_opt_ PVOID ConnectionContext,     // 连接上下文数据  _In_ ULONG SizeOfContext,             // 上下文数据大小  _In_opt_ PSECURITY_ATTRIBUTES SecurityAttributes, // 安全描述符  _Out_opt_ PPORT_MESSAGE *ConnectionCookie // 连接令牌（可选）);
+
+使用 FilterConnectCommunicationPort 函数尝试连接到名为 \HNCTFNamedPipe 的内核通信端口，然后传了上下文数据进去（也就是用户输入）
+个程序只是把用户输整个程序只是把用户输入传给了驱动
+然后我们分析sys驱动文件，先查看函数DriverEntry
+
+可以查看一下各个函数，里面什么没有加密部分，查看函数名那一栏
+发现了一个无xref的构造函数入传
+这个函数有个很明显的部分
+
+PostWriteOperation回调函数：
+是 Windows 文件系统微筛选器驱动（Minifilter）中的一种后置操作回调函数，用于在文件写入操作完成后执行自定义逻辑。
+
+FltGetStreamHandleContext函数是用来****获取上下文
+​    
+其中**v7 &#x3D; sub_1400010C0(Pool, v19, &amp;P, &amp;v23, v29);**是一个接受自定义base64表的base64编码函数，base64表v29由上文的sub_140001894(v29);生成，查看这个函数
+​    
+逐步分析各个函数
+​    
+​    
+发现加密逻辑：
+先是将给出的数据进行一个异或，然后将异或后的数据进行打乱交换得到一个64字节的数据(+6K8hvNwEoMeDjXQUSR3q0dZYupgA17FrT94OsByWzk2CfLc&#x2F;GtJVIPbaxnlmHi5)，结合之前程序里面的字符串
+然后我们接着看sub_1400010C0函数
+​    
+很明显的base64的逻辑 得到flag：H&amp;NCTF{3z_M1n1f1173r_C0mmun1c4710n_b9c1daa9-a2b3-491f975b-de44e76e0a99}
+]]></content>
       <categories>
-          
-          <category> CTF </category>
-          
+        <category>Windows逆向</category>
       </categories>
-      
-      
-    </entry>
-    
-    
-  
-  
+  </entry>
 </search>
