@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>第三篇文章</title>
-    <url>/2025/06/10/%E7%AC%AC%E4%B8%89%E7%AF%87%E6%96%87%E7%AB%A0/</url>
-    <content><![CDATA[]]></content>
-      <categories>
-        <category>各类比赛WP</category>
-      </categories>
-  </entry>
-  <entry>
     <title>Hello World</title>
     <url>/2025/06/10/hello-world/</url>
     <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
@@ -27,6 +19,14 @@ More info: Deployment
 ]]></content>
       <categories>
         <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>第三篇文章</title>
+    <url>/2025/06/10/%E7%AC%AC%E4%B8%89%E7%AF%87%E6%96%87%E7%AB%A0/</url>
+    <content><![CDATA[]]></content>
+      <categories>
+        <category>各类比赛WP</category>
       </categories>
   </entry>
   <entry>
