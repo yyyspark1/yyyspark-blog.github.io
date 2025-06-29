@@ -1,6 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Hello World</title>
+    <url>/2025/06/10/hello-world/</url>
+    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
+Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
+
+More info: Writing
+Run server$ hexo server
+
+More info: Server
+Generate static files$ hexo generate
+
+More info: Generating
+Deploy to remote sites$ hexo deploy
+
+More info: Deployment
+]]></content>
+      <categories>
+        <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Ptrace的简单实现(出题小计)</title>
     <url>/2025/06/10/Ptrace%E7%9A%84%E7%AE%80%E5%8D%95%E5%AE%9E%E7%8E%B0(%E5%87%BA%E9%A2%98%E5%B0%8F%E8%AE%A1)/</url>
     <content><![CDATA[Ptrace的简单实现(出题小计)参考文章：
@@ -47,8 +68,7 @@ wait() 是 C 语言中用于进程同步的系统调用，主要用于父进程�
 
 
 wait系统调用：wait系统调用是一个用来进行进程控制的系统调用，它可以用来阻塞父进程，当父进程接收到子进程传来信号或者子进程退出时，父进程才会继续运行。所以这里的wait系统调用很显然用来接收子进程调用execl时产生的SIGTRAP信号。
-**execl **系统调用语句：
-execl语句可以将当前进程替换成一个新进程。在本例中，execl(“.&#x2F;son”, “son”, key, 0)；语句将原本的子进程替换成了son文件里面的指令。值得注意的是，如果execl系统调用的进程处于PTRACE_TRACEME状态的话，就会发送一个SIGTRAP信号给父进程，并让自身处于Traced状态。
+**execl **系统调用语句：execl语句可以将当前进程替换成一个新进程。在本例中，execl(“.&#x2F;son”, “son”, key, 0)；语句将原本的子进程替换成了son文件里面的指令。值得注意的是，如果execl系统调用的进程处于PTRACE_TRACEME状态的话，就会发送一个SIGTRAP信号给父进程，并让自身处于Traced状态。
 PTRACE_TRACEME 的作用PTRACE_TRACEME 是 Linux 系统中 ptrace() 函数的一个重要请求类型，用于将当前进程设置为被调试状态，允许父进程对其进行跟踪。这是实现调试器（如 GDB）和反调试技术的基础。
 ptrace() 函数原型：
 #include &lt;sys/ptrace.h&gt;long ptrace(enum __ptrace_request request, pid_t pid, void *addr, void *data);
@@ -80,8 +100,8 @@ ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 如果成功，子进程会被暂停，并发送 SIGTRAP 信号给父进程，父进程可以通过 wait() 等待并控制子进程。
 如果失败（例如已经有一个调试器在跟踪该进程），ptrace 会返回 -1，并设置 errno &#x3D; EPERM（权限错误）。
 
-当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。
-(2) 使用 LD_PRELOAD 劫持 ptrace编写一个假的 ptrace 函数，返回 0：
+当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。(2) 使用 LD_PRELOAD 劫持 ptrace
+编写一个假的 ptrace 函数，返回 0：
 // fake_ptrace.clong ptrace(int request, pid_t pid, void *addr, void *data) &#123;    return 0; // 总是返回成功&#125;
 
 编译并注入：
@@ -93,16 +113,16 @@ PTRACE_POKEDATA ：用于向被跟踪进程（tracee）的内存写入数据。�
 内存写入：将 data 的值（long 类型，通常为 4 字节或 8 字节，取决于系统架构）写入目标进程 pid 的内存地址 addr 处。
 原子操作：写入操作是原子的，即一次写入一个完整的 long 类型值。
 
-ptrace() 函数原型同上ptrace(PTRACE_POKEDATA, child, (void*)0x404060, (void*)patch_value) 
+ptrace() 函数原型同上
+ptrace(PTRACE_POKEDATA, child, (void*)0x404060, (void*)patch_value) 
 这里的作用是将son文件0x404060地址处的数据跟改为3
 什么是 EIP&#x2F;RIP？
-
 在 x86 架构下： EIP &#x3D; 指令指针寄存器 (Instruction Pointer)，保存下一条指令的地址。
 在 x86-64 架构下： RIP &#x3D; 64位指令指针。
 
 任何CPU执行都依赖它：
 CPU每执行一条指令，都用EIP&#x2F;RIP去内存取指令。
-**注意：**怎么找子进程实际地址？
+注意：怎么找子进程实际地址？
 可以直接
 nm -n son
 
@@ -117,7 +137,7 @@ readelf -h son
 PIE程序会随机加载基址。
 非PIE程序，地址是固定的。
 
-你可以用指令
+你可以用指令来生成非PIE程序的ELF文件
 gcc -no-pie -g -o son son.c
 
 这里用-no-pie确保是非PIE程序，地址固定。
@@ -178,8 +198,7 @@ data &#x3D; SIGTRAP：用于单步调试（类似 PTRACE_SINGLESTEP）。
 如果传递了信号（如 SIGTRAP），子进程会先处理该信号。
 
 父进程总结实现对子进程固定地址数值的修改，加入一些输出来检测各个部分的情况，这里父进程有两个wait我觉得需要单独讲解一下，第一个wait是停止父进程等待子进程调用execl时产生的SIGTRAP信号并暂停（执行exec时，内核会自动给子进程发送SIGTRAP，这时子进程就暂停了。）。第二个wait是等待子进程运行完退出，获取其退出码，避免出现僵尸进程。
-2.子进程（son）
-#include &lt;stdio.h&gt;#include &lt;string.h&gt;#include &lt;stdlib.h&gt;// 全局变量模拟伪代码中的byte数组unsigned char aaaaa[32] = &#123;  0xCC, 0x8D, 0x2C, 0xEC, 0x6F, 0x88, 0xED, 0xEB, 0x2F, 0xED,   0xAE, 0xEB, 0x4E, 0xAC, 0x2C, 0x8D, 0x8D, 0x2F, 0xEB, 0x6D,   0xCD, 0xED, 0xEE, 0xEB, 0x0E, 0x8E, 0x4E, 0x2C, 0x6C, 0xAC,   0xE7, 0xAF&#125;; // 正确的flag转换结果unsigned char byte_60004080[32] = &#123;0&#125;;int dword_60004040 = 4; // 偏移位数int main(int argc, char **argv) &#123;    char *s = argv[1];    int v6 = strlen(s);    // 实际验证逻辑    for (int i = 0; i &lt; v6; ++i) &#123;        byte_60004080[i] = (s[i] &gt;&gt; dword_60004040) | (s[i] &lt;&lt; (8 - dword_60004040));    &#125;    int correct = 1;    for (int i = 0; i &lt; v6; ++i) &#123;        if (byte_60004080[i] != aaaaa[i]) &#123;            puts(&quot;this is Wrong~&quot;);            correct = 0;            break;        &#125;    &#125;    if (correct) &#123;        puts(&quot;this is right~&quot;);    &#125;    return 0;&#125;
+2.子进程（son）#include &lt;stdio.h&gt;#include &lt;string.h&gt;#include &lt;stdlib.h&gt;// 全局变量模拟伪代码中的byte数组unsigned char aaaaa[32] = &#123;  0xCC, 0x8D, 0x2C, 0xEC, 0x6F, 0x88, 0xED, 0xEB, 0x2F, 0xED,   0xAE, 0xEB, 0x4E, 0xAC, 0x2C, 0x8D, 0x8D, 0x2F, 0xEB, 0x6D,   0xCD, 0xED, 0xEE, 0xEB, 0x0E, 0x8E, 0x4E, 0x2C, 0x6C, 0xAC,   0xE7, 0xAF&#125;; // 正确的flag转换结果unsigned char byte_60004080[32] = &#123;0&#125;;int dword_60004040 = 4; // 偏移位数int main(int argc, char **argv) &#123;    char *s = argv[1];    int v6 = strlen(s);    // 实际验证逻辑    for (int i = 0; i &lt; v6; ++i) &#123;        byte_60004080[i] = (s[i] &gt;&gt; dword_60004040) | (s[i] &lt;&lt; (8 - dword_60004040));    &#125;    int correct = 1;    for (int i = 0; i &lt; v6; ++i) &#123;        if (byte_60004080[i] != aaaaa[i]) &#123;            puts(&quot;this is Wrong~&quot;);            correct = 0;            break;        &#125;    &#125;    if (correct) &#123;        puts(&quot;this is right~&quot;);    &#125;    return 0;&#125;
 
 这串代码关键要说明的就是int argc, char **argv这两个参数
 int main(int argc, char *argv[]) &#123;    return 0;&#125;
@@ -242,27 +261,6 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
 二.VM保护实现]]></content>
       <categories>
         <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>Hello World</title>
-    <url>/2025/06/10/hello-world/</url>
-    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
-Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
-
-More info: Writing
-Run server$ hexo server
-
-More info: Server
-Generate static files$ hexo generate
-
-More info: Generating
-Deploy to remote sites$ hexo deploy
-
-More info: Deployment
-]]></content>
-      <categories>
-        <category>Android逆向</category>
       </categories>
   </entry>
   <entry>
