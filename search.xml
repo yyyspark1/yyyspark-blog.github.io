@@ -54,7 +54,8 @@ perror 的主要作用是：
 perror(“fork”) 是 C 语言中用于输出系统错误信息的函数调用，通常在系统调用失败后使用。
 fflush(stdout)强制将标准输出缓冲区中的所有内容立即输出到终端或文件，无论缓冲区是否已满或是否遇到换行符。
 wait() 是 C 语言中用于进程同步的系统调用，主要用于父进程等待子进程结束并获取其退出状态。下面从多个角度详细解析其功能、应用场景和注意事项：
-函数原型与头文件#include &lt;sys/wait.h&gt;pid_t wait(int *status);
+函数原型与头文件
+#include &lt;sys/wait.h&gt;pid_t wait(int *status);
 
 
 参数：status 是一个整型指针，用于存储子进程的退出状态（若不关心状态，可传 NULL）。
@@ -68,7 +69,7 @@ wait() 是 C 语言中用于进程同步的系统调用，主要用于父进程�
 
 
 wait系统调用：wait系统调用是一个用来进行进程控制的系统调用，它可以用来阻塞父进程，当父进程接收到子进程传来信号或者子进程退出时，父进程才会继续运行。所以这里的wait系统调用很显然用来接收子进程调用execl时产生的SIGTRAP信号。
-**execl **系统调用语句：execl语句可以将当前进程替换成一个新进程。在本例中，execl(“.&#x2F;son”, “son”, key, 0)；语句将原本的子进程替换成了son文件里面的指令。值得注意的是，如果execl系统调用的进程处于PTRACE_TRACEME状态的话，就会发送一个SIGTRAP信号给父进程，并让自身处于Traced状态。
+execl 系统调用语句：execl语句可以将当前进程替换成一个新进程。在本例中，execl(“.&#x2F;son”, “son”, key, 0)；语句将原本的子进程替换成了son文件里面的指令。值得注意的是，如果execl系统调用的进程处于PTRACE_TRACEME状态的话，就会发送一个SIGTRAP信号给父进程，并让自身处于Traced状态。
 PTRACE_TRACEME 的作用PTRACE_TRACEME 是 Linux 系统中 ptrace() 函数的一个重要请求类型，用于将当前进程设置为被调试状态，允许父进程对其进行跟踪。这是实现调试器（如 GDB）和反调试技术的基础。
 ptrace() 函数原型：
 #include &lt;sys/ptrace.h&gt;long ptrace(enum __ptrace_request request, pid_t pid, void *addr, void *data);
@@ -100,7 +101,8 @@ ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 如果成功，子进程会被暂停，并发送 SIGTRAP 信号给父进程，父进程可以通过 wait() 等待并控制子进程。
 如果失败（例如已经有一个调试器在跟踪该进程），ptrace 会返回 -1，并设置 errno &#x3D; EPERM（权限错误）。
 
-当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。(2) 使用 LD_PRELOAD 劫持 ptrace
+当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。
+(2) 使用 LD_PRELOAD 劫持 ptrace
 编写一个假的 ptrace 函数，返回 0：
 // fake_ptrace.clong ptrace(int request, pid_t pid, void *addr, void *data) &#123;    return 0; // 总是返回成功&#125;
 
@@ -254,8 +256,7 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
 功能：指向环境变量的指针数组，用于访问系统环境变量（如 PATH、HOME）。
 格式：每个元素是形如 NAME&#x3D;VALUE 的字符串，最后一个元素为 NULL。
 
-子进程总结
-实现了一个简单的字节内部左右移加密，子进程的偏移量是假的
+子进程总结实现了一个简单的字节内部左右移加密，子进程的偏移量是假的
 父子进程初步实现了Ptrace的修改被调试进程（tracee）的内存数据，下面是运行截图
 
 二.VM保护实现]]></content>
