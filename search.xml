@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>test</title>
-    <url>/2025/06/10/test/</url>
-    <content><![CDATA[]]></content>
-      <categories>
-        <category>各类比赛WP</category>
-      </categories>
-  </entry>
-  <entry>
     <title>Hello World</title>
     <url>/2025/06/10/hello-world/</url>
     <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
@@ -27,6 +19,250 @@ More info: Deployment
 ]]></content>
       <categories>
         <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>Ptrace的简单实现(出题小计)</title>
+    <url>/2025/06/10/Ptrace%E7%9A%84%E7%AE%80%E5%8D%95%E5%AE%9E%E7%8E%B0(%E5%87%BA%E9%A2%98%E5%B0%8F%E8%AE%A1)/</url>
+    <content><![CDATA[Ptrace的简单实现(出题小计)参考文章：
+威力巨大的系统调用——ptrace
+偶然间看到一个有关ptrace的题目，对ptrace有点兴趣，于是研究了一下Ptrace的简单实现，下面是我写的一个简单的逆向Ptrace题目（Ptrace+VM）
+一.先对Ptrace的父子进程的实现1.父进程（father）#include &lt;stdio.h&gt; #include &lt;stdlib.h&gt;  #include &lt;string.h&gt;  #include &lt;sys/ptrace.h&gt;  //提供ptrace系统调用的接口#include &lt;sys/types.h&gt;   //定义系统相关的数据类型 #include &lt;sys/wait.h&gt;    //提供进程控制函数#include &lt;unistd.h&gt;      //提供POSIX操作系统API#include &lt;errno.h&gt;       //提供错误报告机制int main()&#123;    printf(&quot;Input your key:&quot;);    char key[64];    scanf(&quot;%32s&quot;, key);    pid_t child;    child = fork();    if(child)    &#123;        if (child &lt; 0)        &#123;            perror(&quot;fork&quot;);            return -1;        &#125;        printf(&quot;Waiting for child...\n&quot;);        fflush(stdout);        wait(NULL);        printf(&quot;Wait done.\n&quot;);        fflush(stdout);        long patch_value = 3;        if (ptrace(PTRACE_POKEDATA, child, (void*)0x404060, (void*)patch_value) == -1) &#123;            perror(&quot;ptrace POKEDATA&quot;);        &#125; else &#123;            printf(&quot;Patched success\n&quot;);        &#125;        fflush(stdout);        if (ptrace(PTRACE_CONT, child, NULL, NULL) == -1) &#123;            perror(&quot;ptrace CONT&quot;);        &#125;        printf(&quot;Continued child.\n&quot;);        fflush(stdout);        wait(NULL);        printf(&quot;Child exited.\n&quot;);        fflush(stdout);    &#125;    else    &#123;        if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1) &#123;            printf(&quot;NONONO!!!\n&quot;);            exit(1);        &#125;        execl(&quot;./son&quot;, &quot;son&quot;, key, 0);        perror(&quot;execl&quot;);        exit(1);    &#125;    return 0;&#125;
+
+pid_t 是一个系统定义的数据类型，通常在 或 头文件中声明。
+
+有符号整数类型：通常是 int 或 long，具体取决于系统架构。
+足够大：能表示系统中可能存在的最大进程 ID。
+
+fork() 是 Unix&#x2F;Linux 系统中创建新进程的核心函数，它允许一个进程（父进程）复制自身，创建一个几乎完全相同的子进程。
+
+返回值：
+
+
+-1：创建子进程失败（如内存不足或进程数达到系统限制）。
+0：在子进程中返回。
+正整数：在父进程中返回，该值是子进程的进程 ID（PID）一个大于0的整数。
+
+
+
+perror 的主要作用是：
+
+读取全局变量 errno：errno 存储了最近一次系统调用的错误码（整数）。
+转换错误码为文本信息：将 errno 映射为对应的错误描述字符串（如 “No such file or directory”）。
+输出错误信息：格式为 [自定义字符串]: [系统错误描述]。
+
+perror(“fork”) 是 C 语言中用于输出系统错误信息的函数调用，通常在系统调用失败后使用。
+fflush(stdout)强制将标准输出缓冲区中的所有内容立即输出到终端或文件，无论缓冲区是否已满或是否遇到换行符。
+wait() 是 C 语言中用于进程同步的系统调用，主要用于父进程等待子进程结束并获取其退出状态。下面从多个角度详细解析其功能、应用场景和注意事项：
+函数原型与头文件#include &lt;sys/wait.h&gt;pid_t wait(int *status);
+
+
+参数：status 是一个整型指针，用于存储子进程的退出状态（若不关心状态，可传 NULL）。
+
+返回值：
+
+
+成功：返回结束的子进程的 PID（正整数）。
+失败：返回 -1，并设置 errno（如无子进程可等待）。
+
+
+
+wait系统调用：wait系统调用是一个用来进行进程控制的系统调用，它可以用来阻塞父进程，当父进程接收到子进程传来信号或者子进程退出时，父进程才会继续运行。所以这里的wait系统调用很显然用来接收子进程调用execl时产生的SIGTRAP信号。
+**execl **系统调用语句：
+execl语句可以将当前进程替换成一个新进程。在本例中，execl(“.&#x2F;son”, “son”, key, 0)；语句将原本的子进程替换成了son文件里面的指令。值得注意的是，如果execl系统调用的进程处于PTRACE_TRACEME状态的话，就会发送一个SIGTRAP信号给父进程，并让自身处于Traced状态。
+PTRACE_TRACEME 的作用PTRACE_TRACEME 是 Linux 系统中 ptrace() 函数的一个重要请求类型，用于将当前进程设置为被调试状态，允许父进程对其进行跟踪。这是实现调试器（如 GDB）和反调试技术的基础。
+ptrace() 函数原型：
+#include &lt;sys/ptrace.h&gt;long ptrace(enum __ptrace_request request, pid_t pid, void *addr, void *data);
+
+
+参数：
+
+
+request：指定 ptrace 的操作类型（如 PTRACE_TRACEME、PTRACE_POKEDATA 等）。
+pid：目标进程的 PID（对 PTRACE_TRACEME 无效，填 0 或任意值）。
+addr：内存地址（用于读写内存等操作，对 PTRACE_TRACEME 无效，填 0 或任意值）。
+data：数据值（对 PTRACE_TRACEME 无效，填 0 或任意值）。
+
+
+
+当一个进程调用 ptrace(PTRACE_TRACEME, 0, 0, 0) 时：
+
+标记自身为被跟踪进程：该进程会成为被调试者（tracee），其父进程自动成为调试者（tracer）。
+触发 SIGTRAP 信号：调用后，进程会立即给自己发送一个 SIGTRAP 信号，导致自身暂停执行。
+父进程控制：父进程可通过 wait() 捕获该信号，并使用 ptrace 的其他请求（如 PTRACE_CONT、PTRACE_PEEKTEXT）控制子进程的执行。
+
+可以用于反调试操作（最简单的一类）：由于 ptrace 一个进程同一时间只能被一个调试器跟踪（ptrace 是独占的），所以如果在程序启动时调用 PTRACE_TRACEME：
+当子进程调用：
+ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+
+它会告诉内核：
+“允许我的父进程跟踪我（调试我）”
+
+如果成功，子进程会被暂停，并发送 SIGTRAP 信号给父进程，父进程可以通过 wait() 等待并控制子进程。
+如果失败（例如已经有一个调试器在跟踪该进程），ptrace 会返回 -1，并设置 errno &#x3D; EPERM（权限错误）。
+
+当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。
+(2) 使用 LD_PRELOAD 劫持 ptrace编写一个假的 ptrace 函数，返回 0：
+// fake_ptrace.clong ptrace(int request, pid_t pid, void *addr, void *data) &#123;    return 0; // 总是返回成功&#125;
+
+编译并注入：
+gcc -shared -fPIC fake_ptrace.c -o fake_ptrace.soLD_PRELOAD=./fake_ptrace.so ./anti_debug
+
+这样 ptrace 调用会被劫持，返回 0，绕过检测。
+PTRACE_POKEDATA ：用于向被跟踪进程（tracee）的内存写入数据。这是实现调试器、内存补丁和代码注入等功能的基础。返回值：成功返回 0，失败返回 -1 并设置 errno。
+
+内存写入：将 data 的值（long 类型，通常为 4 字节或 8 字节，取决于系统架构）写入目标进程 pid 的内存地址 addr 处。
+原子操作：写入操作是原子的，即一次写入一个完整的 long 类型值。
+
+ptrace() 函数原型同上ptrace(PTRACE_POKEDATA, child, (void*)0x404060, (void*)patch_value) 
+这里的作用是将son文件0x404060地址处的数据跟改为3
+什么是 EIP&#x2F;RIP？
+
+在 x86 架构下： EIP &#x3D; 指令指针寄存器 (Instruction Pointer)，保存下一条指令的地址。
+在 x86-64 架构下： RIP &#x3D; 64位指令指针。
+
+任何CPU执行都依赖它：
+CPU每执行一条指令，都用EIP&#x2F;RIP去内存取指令。
+**注意：**怎么找子进程实际地址？
+可以直接
+nm -n son
+
+​    
+来进行查找整个子进程的的偏移（如果你没开PIE程序的话这直接就是这个地址，开了的话需要加载基址 + 偏移）
+子进程运行时，查看 &#x2F;proc&#x2F;&#x2F;maps 中 .data 或 .bss 区域加载地址。
+查看：
+readelf -h son
+
+如果Type: DYN (Position-Independent Executable)，就表示是PIE。
+
+PIE程序会随机加载基址。
+非PIE程序，地址是固定的。
+
+你可以用指令
+gcc -no-pie -g -o son son.c
+
+这里用-no-pie确保是非PIE程序，地址固定。
+PTRACE_CONT：用于 让被调试的进程（tracee）继续执行。**Ptrace函数原型同上，**这里讲解一下参数
+
+
+
+参数
+类型
+说明
+
+
+
+request
+enum __ptrace_request
+必须是PTRACE_CONT
+
+
+pid
+pid_t
+目标进程的 PID（子进程）
+
+
+addr
+void*
+通常传 NULL（历史遗留参数，一般不用）
+
+
+data
+void*
+可选信号（如SIGTRAP、0表示无信号）
+
+
+关键注意事项(1) 子进程必须处于暂停状态
+
+PTRACE_CONT 只能用于已经被 ptrace 暂停的进程（比如调用了 PTRACE_TRACEME 或 PTRACE_ATTACH）。
+常见错误：如果子进程没有暂停，PTRACE_CONT 会返回 -1，errno &#x3D; ESRCH。
+
+(2) addr 参数通常忽略
+
+由于历史原因，PTRACE_CONT 的 addr 参数没有实际用途，一般传 NULL。
+
+(3) data 参数可以传递信号
+
+data 可以是一个信号编号（如 SIGTRAP），子进程恢复时会收到该信号。
+
+典型用途：
+
+
+data &#x3D; 0：普通继续执行。
+data &#x3D; SIGTRAP：用于单步调试（类似 PTRACE_SINGLESTEP）。
+
+
+
+(4) 子进程恢复后的行为
+
+子进程会从上次停止的地方继续执行。
+如果传递了信号（如 SIGTRAP），子进程会先处理该信号。
+
+父进程总结实现对子进程固定地址数值的修改，加入一些输出来检测各个部分的情况，这里父进程有两个wait我觉得需要单独讲解一下，第一个wait是停止父进程等待子进程调用execl时产生的SIGTRAP信号并暂停（执行exec时，内核会自动给子进程发送SIGTRAP，这时子进程就暂停了。）。第二个wait是等待子进程运行完退出，获取其退出码，避免出现僵尸进程。
+2.子进程（son）
+#include &lt;stdio.h&gt;#include &lt;string.h&gt;#include &lt;stdlib.h&gt;// 全局变量模拟伪代码中的byte数组unsigned char aaaaa[32] = &#123;  0xCC, 0x8D, 0x2C, 0xEC, 0x6F, 0x88, 0xED, 0xEB, 0x2F, 0xED,   0xAE, 0xEB, 0x4E, 0xAC, 0x2C, 0x8D, 0x8D, 0x2F, 0xEB, 0x6D,   0xCD, 0xED, 0xEE, 0xEB, 0x0E, 0x8E, 0x4E, 0x2C, 0x6C, 0xAC,   0xE7, 0xAF&#125;; // 正确的flag转换结果unsigned char byte_60004080[32] = &#123;0&#125;;int dword_60004040 = 4; // 偏移位数int main(int argc, char **argv) &#123;    char *s = argv[1];    int v6 = strlen(s);    // 实际验证逻辑    for (int i = 0; i &lt; v6; ++i) &#123;        byte_60004080[i] = (s[i] &gt;&gt; dword_60004040) | (s[i] &lt;&lt; (8 - dword_60004040));    &#125;    int correct = 1;    for (int i = 0; i &lt; v6; ++i) &#123;        if (byte_60004080[i] != aaaaa[i]) &#123;            puts(&quot;this is Wrong~&quot;);            correct = 0;            break;        &#125;    &#125;    if (correct) &#123;        puts(&quot;this is right~&quot;);    &#125;    return 0;&#125;
+
+这串代码关键要说明的就是int argc, char **argv这两个参数
+int main(int argc, char *argv[]) &#123;    return 0;&#125;
+
+
+
+
+argc：argument count，命令行参数的数量。
+
+argv：argument vector，命令行参数的数组。
+
+
+argc：参数个数当你在命令行运行程序，比如：
+./son 123 abc def
+
+系统就会把你输入的参数传给main。
+在这个例子中：
+
+argc &#x3D; 4
+
+
+参数0: .&#x2F;son（程序名）
+参数1: 123
+参数2: abc
+参数3: def
+
+
+
+所以，argc永远 &gt;&#x3D;1，因为第0个参数总是程序本身的路径（或者至少是它的名字）。
+argv：参数数组argv是一个数组指针，每个元素是一个字符串指针(char*)。
+把刚才例子展开：
+argv[0] = &quot;./son&quot;argv[1] = &quot;123&quot;argv[2] = &quot;abc&quot;argv[3] = &quot;def&quot;argv[4] = NULL
+
+注意：
+argv的最后一个元素必定是NULL。
+这是C语言对字符串数组的一种约定：数组结束用NULL标记。
+和execl的关系当你调用：
+c复制编辑execl(“.&#x2F;son”, “son”, key, NULL);
+它就会把这些参数传递到被加载的新程序的main()里：
+
+“son” -&gt; argv[0]
+key -&gt; argv[1]
+NULL -&gt; 标记结束
+
+所以，在你的son程序里：
+int main(int argc, char **argv)&#123;    // argc = 2    // argv[0] = &quot;son&quot;    // argv[1] = key (你输入的字符串)&#125;
+
+上面讲的两个参数是main函数的标准形式，接下来简单过一下扩展形式：带三个参数（POSIX 标准）
+int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
+
+第三个参数 envp（Environment Variables）：
+
+功能：指向环境变量的指针数组，用于访问系统环境变量（如 PATH、HOME）。
+格式：每个元素是形如 NAME&#x3D;VALUE 的字符串，最后一个元素为 NULL。
+
+子进程总结
+实现了一个简单的字节内部左右移加密，子进程的偏移量是假的
+父子进程初步实现了Ptrace的修改被调试进程（tracee）的内存数据，下面是运行截图
+
+二.VM保护实现]]></content>
+      <categories>
+        <category>Windows逆向</category>
       </categories>
   </entry>
   <entry>
