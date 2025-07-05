@@ -1,35 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Hello World</title>
-    <url>/2025/06/10/hello-world/</url>
-    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
-Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
-
-More info: Writing
-Run server$ hexo server
-
-More info: Server
-Generate static files$ hexo generate
-
-More info: Generating
-Deploy to remote sites$ hexo deploy
-
-More info: Deployment
-]]></content>
-      <categories>
-        <category>Android逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>test</title>
-    <url>/2025/06/30/test/</url>
-    <content><![CDATA[]]></content>
-      <categories>
-        <category>各类比赛WP</category>
-      </categories>
-  </entry>
-  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -189,55 +160,6 @@ Edit-&gt;plugins-D-810或快捷键CTRL+shift+D启动D810
 3：回到需要反混淆的函数，F5大法好
 此处Decompiling需要等一会，等待出现D-810 ready to deobfuscate…后f5反编译时会自动进行去混淆。
 二，使用基于 angr 的脚本 deflat.py 去除控制流平坦化这个方法我没使用过，这里不做讲解，感兴趣的师傅可以去搜一下
-例题：西安电子科技大学的NewStar CTF的0llvm这里直接去看他们的官方WP就行我这里只讲一下
-IDA 8.3 自带一个插件 findcrypt的功能
-FindCrypt 是一个内置插件，其核心功能是在二进制文件（如可执行程序、库文件）中自动识别加密算法和密码学原语的特征。
-一、主要功能
-
-识别加密算法
-
-
-
-检测常见加密算法的实现，如：
-
-
-对称加密：AES、DES、3DES、RC4、Blowfish、Twofish 等。
-非对称加密：RSA、ECC（椭圆曲线密码学）、Diffie-Hellman 等。
-哈希函数：MD5、SHA-1、SHA-256、SHA-512、CRC32 等。
-其他：Base64、RC5、IDEA 等。
-
-
-
-
-
-
-定位密钥和常量
-
-
-
-识别硬编码在二进制中的密钥、初始化向量（IV）、盐值（salt）等敏感数据。
-例如，检测 AES 算法中使用的 16&#x2F;24&#x2F;32 字节密钥常量，或 RSA 中的大素数。
-
-
-
-
-标记密码学相关函数
-
-
-
-自动为发现的加密函数添加注释（如 sub_401000 → AES_Encrypt），并在 IDA 的函数列表中高亮显示。
-
-
-
-
-生成报告
-
-
-
-输出识别结果的摘要，包括算法类型、发现位置、可能的用途等，方便逆向工程师快速梳理加密逻辑。
-
-
-
 指令替换指令替换，Instruction-Substitution（sub），是一种比较简单的混淆方式，会将代码中一些简单的数学运算复杂化，但这种方式容易被代码优化给去除，且目前 OLLVM 只实现对整数运算的混淆。如：
 原式子：a=b+c混淆后：a = b - (-c)a = -(-b + (-c))r = rand (); a = b + r; a = a + c; a = a - rr = rand (); a = b - r; a = a + b; a = a + r原式子：a = b-c混淆后：a = b + (-c)r = rand (); a = b + r; a = a - c; a = a - rr = rand (); a = b - r; a = a - c; a = a + r原指令：a = b &amp; c混淆后：a = (b ^ ~c) &amp; ba = ~(~a | ~b) &amp; (r | ~r)原指令：a = b | c混淆后：a = (b &amp; c) | (b ^ c)a = (((~a &amp; r) | (a &amp; ~r)) ^ ((~b &amp; r) | (b &amp; ~r))) | (~(~a | ~b) &amp; (r | ~r))原指令：a = a ^ b混淆后：a = (~a &amp; b) | (a &amp; ~b)a = ((~a &amp; r) | (a &amp; ~r)) ^ ((~b &amp; r) | (b &amp; ~r))
 
@@ -319,6 +241,35 @@ if (rand() == -1)
 ]]></content>
       <categories>
         <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>test</title>
+    <url>/2025/06/30/test/</url>
+    <content><![CDATA[]]></content>
+      <categories>
+        <category>各类比赛WP</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>Hello World</title>
+    <url>/2025/06/10/hello-world/</url>
+    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
+Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
+
+More info: Writing
+Run server$ hexo server
+
+More info: Server
+Generate static files$ hexo generate
+
+More info: Generating
+Deploy to remote sites$ hexo deploy
+
+More info: Deployment
+]]></content>
+      <categories>
+        <category>Android逆向</category>
       </categories>
   </entry>
   <entry>
