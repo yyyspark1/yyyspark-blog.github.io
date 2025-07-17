@@ -265,6 +265,87 @@ if (rand() == -1)
       </categories>
   </entry>
   <entry>
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+[RC5 分组密钥算法 C语言实现](https://blog.csdn.net/lrhui0903/article/details/39778107#:~:text=本文详细介绍了RC5加密算法的C语言实现过程，包括参数定义、循环移位函数、初始密钥产生、密钥扩展、加密与解密函数及主函数测试。 文章深入探讨了RC5算法的基本原理及其在实际应用中的具体实现。 摘要生成于 C知道 ，由 DeepSeek-R1,满血版支持， 前往体验 &gt; 基本的RC5 3种算法组成，即密钥扩展算法、加密算法和解密算法。 故RC5的C语言实现也由以下几个部分构成。)
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+从表中可以得到下列结论：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
+
+每一轮：
+
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
+
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
+
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
+
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
+
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
+
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
+
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
+
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
+
+这里用两个“幻数”：
+
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
+
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
+
+在 C 语言里 uint32_t 类型是无符号32位整数。
+
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+
+
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
+
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
+
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;// RC5 parameters#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;  // 将密钥转换为小端序的32位字    for (int i = 0; i &lt; b; i++) &#123;    L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;    // define arrays    uint8_t K[b] = &#123; &#x27;c&#x27;,&#x27;l&#x27;,&#x27;e&#x27;,&#x27;W&#x27;,&#x27;t&#x27;,&#x27;e&#x27;,&#x27;m&#x27;,&#x27;o&#x27;,&#x27;H&#x27;,&#x27;3&#x27;,&#x27;L&#x27;,&#x27;o&#x27;,&#x27;!&#x27;,&#x27;F&#x27;,&#x27;T&#x27;,&#x27;C&#x27; &#125;;    uint32_t S[t];    uint32_t plaintext[2] = &#123; 0x12345678, 0x9ABCDEF0 &#125;;    uint8_t cipher_bytes[32] = &#123;     0x1B, 0xBB, 0xA1, 0xF2, 0xE9, 0x7C, 0x87, 0x21,     0x8A, 0x37, 0xFD, 0x0A, 0x94, 0x1A, 0x81, 0xBC,     0x40, 0x1E, 0xE3, 0xAA, 0x73, 0x2E, 0xD8, 0x3F,     0x84, 0xB8, 0x71, 0x42, 0xCC, 0x35, 0x8B, 0x39    &#125;;    uint32_t decrypted[2];    uint32_t ciphertext[8];    // 将字节序列转换为小端序的32位字    for (int i = 0; i &lt; 8; i++) &#123;        ciphertext[i] =            (cipher_bytes[4 * i + 3] &lt;&lt; 24) |            (cipher_bytes[4 * i + 2] &lt;&lt; 16) |            (cipher_bytes[4 * i + 1] &lt;&lt; 8) |            cipher_bytes[4 * i];    &#125;    // 密钥扩展    generateSubkeys(K, S);    //加密    for(int i =0;i&lt;4;i++)    Encrypt(&amp;ciphertext[i*2], &amp;decrypted[i*2], S);    for(int j = 0;j&lt;8;j+=2)    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[j], decrypted[j+1]);    printf(&quot;\n\n&quot;);    printf(&quot;%s&quot;, decrypted);    //解密    for(int i =0;i&lt;4;i++)    Decrypt(&amp;ciphertext[i*2], &amp;decrypted[i*2], S);    for(int j = 0;j&lt;8;j+=2)    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[j], decrypted[j+1]);    printf(&quot;\n\n&quot;);    printf(&quot;%s&quot;, decrypted);    return 0;&#125;
+
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Ptrace的简单实现(出题小计)</title>
     <url>/2025/06/10/Ptrace%E7%9A%84%E7%AE%80%E5%8D%95%E5%AE%9E%E7%8E%B0(%E5%87%BA%E9%A2%98%E5%B0%8F%E8%AE%A1)/</url>
     <content><![CDATA[Ptrace的简单实现(出题小计)参考文章：
@@ -755,87 +836,6 @@ FltGetStreamHandleContext函数是用来****获取上下文
 然后我们接着看sub_1400010C0函数
 ​    
 很明显的base64的逻辑 得到flag：H&amp;NCTF{3z_M1n1f1173r_C0mmun1c4710n_b9c1daa9-a2b3-491f975b-de44e76e0a99}
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-[RC5 分组密钥算法 C语言实现](https://blog.csdn.net/lrhui0903/article/details/39778107#:~:text=本文详细介绍了RC5加密算法的C语言实现过程，包括参数定义、循环移位函数、初始密钥产生、密钥扩展、加密与解密函数及主函数测试。 文章深入探讨了RC5算法的基本原理及其在实际应用中的具体实现。 摘要生成于 C知道 ，由 DeepSeek-R1,满血版支持， 前往体验 &gt; 基本的RC5 3种算法组成，即密钥扩展算法、加密算法和解密算法。 故RC5的C语言实现也由以下几个部分构成。)
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-从表中可以得到下列结论：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
-
-每一轮：
-
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
-
-
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;// RC5 parameters#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;  // 将密钥转换为小端序的32位字    for (int i = 0; i &lt; b; i++) &#123;    L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;    // define arrays    uint8_t K[b] = &#123; &#x27;c&#x27;,&#x27;l&#x27;,&#x27;e&#x27;,&#x27;W&#x27;,&#x27;t&#x27;,&#x27;e&#x27;,&#x27;m&#x27;,&#x27;o&#x27;,&#x27;H&#x27;,&#x27;3&#x27;,&#x27;L&#x27;,&#x27;o&#x27;,&#x27;!&#x27;,&#x27;F&#x27;,&#x27;T&#x27;,&#x27;C&#x27; &#125;;    uint32_t S[t];    uint32_t plaintext[2] = &#123; 0x12345678, 0x9ABCDEF0 &#125;;    uint8_t cipher_bytes[32] = &#123;     0x1B, 0xBB, 0xA1, 0xF2, 0xE9, 0x7C, 0x87, 0x21,     0x8A, 0x37, 0xFD, 0x0A, 0x94, 0x1A, 0x81, 0xBC,     0x40, 0x1E, 0xE3, 0xAA, 0x73, 0x2E, 0xD8, 0x3F,     0x84, 0xB8, 0x71, 0x42, 0xCC, 0x35, 0x8B, 0x39    &#125;;    uint32_t decrypted[2];    uint32_t ciphertext[8];    // 将字节序列转换为小端序的32位字    for (int i = 0; i &lt; 8; i++) &#123;        ciphertext[i] =            (cipher_bytes[4 * i + 3] &lt;&lt; 24) |            (cipher_bytes[4 * i + 2] &lt;&lt; 16) |            (cipher_bytes[4 * i + 1] &lt;&lt; 8) |            cipher_bytes[4 * i];    &#125;    // 密钥扩展    generateSubkeys(K, S);    //加密    for(int i =0;i&lt;4;i++)    Encrypt(&amp;ciphertext[i*2], &amp;decrypted[i*2], S);    for(int j = 0;j&lt;8;j+=2)    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[j], decrypted[j+1]);    printf(&quot;\n\n&quot;);    printf(&quot;%s&quot;, decrypted);    //解密    for(int i =0;i&lt;4;i++)    Decrypt(&amp;ciphertext[i*2], &amp;decrypted[i*2], S);    for(int j = 0;j&lt;8;j+=2)    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[j], decrypted[j+1]);    printf(&quot;\n\n&quot;);    printf(&quot;%s&quot;, decrypted);    return 0;&#125;
-
 ]]></content>
       <categories>
         <category>Windows逆向</category>
