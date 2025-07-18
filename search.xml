@@ -1,111 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Hello World</title>
-    <url>/2025/06/10/hello-world/</url>
-    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
-Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
-
-More info: Writing
-Run server$ hexo server
-
-More info: Server
-Generate static files$ hexo generate
-
-More info: Generating
-Deploy to remote sites$ hexo deploy
-
-More info: Deployment
-]]></content>
-      <categories>
-        <category>Android逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-RC5 分组密钥算法 C语言实现
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
-
-每一轮：
-
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
-
-
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
-
-数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
-
-为什么要转化为小端序呢？大端序不行嘛？
-vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -611,6 +506,111 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
       </categories>
   </entry>
   <entry>
+    <title>Hello World</title>
+    <url>/2025/06/10/hello-world/</url>
+    <content><![CDATA[Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
+Quick StartCreate a new post$ hexo new &quot;My New Post&quot;
+
+More info: Writing
+Run server$ hexo server
+
+More info: Server
+Generate static files$ hexo generate
+
+More info: Generating
+Deploy to remote sites$ hexo deploy
+
+More info: Deployment
+]]></content>
+      <categories>
+        <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+RC5 分组密钥算法 C语言实现
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
+
+每一轮：
+
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
+
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
+
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
+
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
+
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
+
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
+
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
+
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
+
+这里用两个“幻数”：
+
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
+
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
+
+在 C 语言里 uint32_t 类型是无符号32位整数。
+
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+
+
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
+
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
+
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
+
+数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
+
+为什么要转化为小端序呢？大端序不行嘛？
+vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>初探Windows驱动逆向</title>
     <url>/2025/06/03/%E5%88%9D%E6%8E%A2WIndows%E9%A9%B1%E5%8A%A8%E9%80%86%E5%90%91/</url>
     <content><![CDATA[初探Windows逆向参考文章链接：
@@ -885,6 +885,17 @@ patch后直接打开会随机触发不稳定的反调试，这是因为在游戏
 
 
 L3HCTF{ad4d5916-9697-4219-af06-014959c2f4c9}
+ez_android(复现)用jadx反编译找到MainActivity类发现没东西
+
+运行APK发现输入数据错误时提示Wrong answer
+解压APk分析so文件根据Wrong answer提示，找到加密函数
+__int64 __usercall ez_android_lib::greet@&lt;X0&gt;(void *a1@&lt;X0&gt;, size_t n27@&lt;X1&gt;, __int64 *a3@&lt;X8&gt;)&#123;  __int64 v6; // x23  char *flag_1; // x0  char *flag; // x20  unsigned __int64 i; // x8  unsigned __int64 i_1; // x15  unsigned __int8 v11; // w13  __int64 n16; // x22  __int64 v16; // x0  __int64 n16_1; // x8  __int64 result; // x0  _BYTE v19[11]; // [xsp+10h] [xbp-50h] BYREF  qmemcpy(&amp;v19[8], &quot;O2*&quot;, 3);  *v19 = 0xFC020A4C0E2C7290LL;  if ( (n27 &amp; 0x8000000000000000LL) != 0 )  &#123;    v6 = 0LL;    goto LABEL_30;  &#125;  if ( !n27 )  &#123;    flag = (&amp;dword_0 + 1);    memcpy(&amp;dword_0 + 1, a1, 0LL);    goto LABEL_22;  &#125;  v6 = 1LL;  flag_1 = _rust_alloc(n27, 1LL);  if ( !flag_1 )LABEL_30:    alloc::raw_vec::handle_error(v6, n27, &amp;anon_87fc6f247fa1f8b0fae38f081a8df7a4_43_llvm_1227004194129537882);// &quot;C:\\Users\\yll20\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib/rustlib/src/rust\\library/alloc/src/slice.rs&quot;  flag = flag_1;  memcpy(flag_1, a1, n27);  if ( n27 == 27 )  &#123;    for ( i = 0LL; i != 27; ++i )    &#123;      i_1 = i - 14;      if ( i &lt; 14 )        i_1 = i;      v11 = H[(((2 * i) | 1) - 14 * ((147 * ((2 * i) | 1u)) &gt;&gt; 11))] + (flag[i] ^ H[i_1]);      flag[i] = H[(i + 4) % 14u] ^ ((v11 &lt;&lt; (H[(i + 3) % 14u] &amp; 7)) | (v11 &gt;&gt; (-H[(i + 3) % 14u] &amp; 7)));    &#125;    if ( *flag == 0xA409663A025150CLL      &amp;&amp; *(flag + 1) == 0x1FE106294065165CLL      &amp;&amp; *(flag + 2) == 0xFC020A4C0E2C7290LL      &amp;&amp; *(flag + 19) == *&amp;v19[3] )    &#123;      n16 = 16LL;      v16 = _rust_alloc(16LL, 1LL);      if ( v16 )      &#123;        n16_1 = 16LL;        *v16 = Congratulations_;                // Congratulations!        goto LABEL_27;      &#125;    &#125;    else    &#123;      n16 = 12LL;      v16 = _rust_alloc(12LL, 1LL);      if ( v16 )      &#123;        *(v16 + 8) = 1919252339;                // Wrong answer        n16_1 = 12LL;        *v16 = *&amp;H[14];LABEL_27:        *a3 = n16_1;        a3[1] = v16;        a3[2] = n16_1;        return _rust_dealloc(flag, n27, 1LL);      &#125;    &#125;LABEL_31:    alloc::raw_vec::handle_error(1LL, n16, &amp;anon_87fc6f247fa1f8b0fae38f081a8df7a4_43_llvm_1227004194129537882);// &quot;C:\\Users\\yll20\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib/rustlib/src/rust\\library/alloc/src/slice.rs&quot;  &#125;LABEL_22:  n16 = 12LL;  result = _rust_alloc(12LL, 1LL);  if ( !result )    goto LABEL_31;  *(result + 8) = 1919252339;  *result = *&amp;H[14];  *a3 = 12LL;  a3[1] = result;  a3[2] = 12LL;  if ( n27 )    return _rust_dealloc(flag, n27, 1LL);  return result;&#125;
+
+很明显的加密，直接进行爆破可以得到flag
+#include&lt;stdio.h&gt;#include&lt;stdint.h&gt;char H[] = &quot;dGhpc2lzYWtleQ&quot;;char cipher[] =&#123; 0x0c,0x15,0x25,0xa0,0x63,0x96,0x40,0x0a,0x5c,0x16,0x65,0x40,0x29,0x06,0xe1,0x1f ,0x90,0x72,0x2c,0x0e,0x4c,0x0a,0x02,0xfc,0x4f,0x32,0x2a &#125;;void enc(char* fake, int i)&#123;    int i_1 = i;    i_1 = i - 14;    if (i &lt; 14)    i_1 = i;    //v11 = H[(((2 * i) | 1) - 14 * ((147 * ((2 * i) | 1)) &gt;&gt; 11))] + (*fake^ H[i_1]);    //*fake = H[(i + 4) % 14] ^ ((v11 &lt;&lt; (H[(i + 3) % 14] &amp; 7)) | (v11 &gt;&gt; (-H[(i + 3) % 14] &amp; 7)));    unsigned int index = (2 * i | 1);    index = index - 14 * ((147 * index) &gt;&gt; 11);    unsigned char v11 = H[index] + (*fake ^ H[i_1]);    unsigned char shift = H[(i + 3) % 14] &amp; 7;    unsigned char rotated = (v11 &lt;&lt; shift) | (v11 &gt;&gt; (8 - shift));    *fake = H[(i + 4) % 14] ^ rotated;&#125;int main()&#123;    char Input =  0;    char flag[27] = &#123; 0 &#125;;    for (int i = 0;i &lt; 27;i++)    &#123;        for (int j = 32;j &lt; 127;j++)        &#123;            Input = j;            enc(&amp;Input, i);            if (Input == cipher[i])            &#123;                flag[i] = j;                break;            &#125;        &#125;    &#125;    for (int i = 0;i &lt; 27;i++)        printf(&quot;%c&quot;, flag[i]);	return 0;&#125;//L3HCTF&#123;ez_rust_reverse_lol&#125;
+
+不能直接复制使用ida反编译的加密代码，因为char 类型在 C 语言中默认是有符号的，当值大于 127 时会变为负数，导致移位操作不正确，导致爆破错误flag缺失
+L3HCTF{ez_rust_reverse_lol}
 ]]></content>
       <categories>
         <category>各类比赛WP</category>
