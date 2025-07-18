@@ -894,7 +894,7 @@ __int64 __usercall ez_android_lib::greet@&lt;X0&gt;(void *a1@&lt;X0&gt;, size_t 
 很明显的加密，直接进行爆破可以得到flag
 #include&lt;stdio.h&gt;#include&lt;stdint.h&gt;char H[] = &quot;dGhpc2lzYWtleQ&quot;;char cipher[] =&#123; 0x0c,0x15,0x25,0xa0,0x63,0x96,0x40,0x0a,0x5c,0x16,0x65,0x40,0x29,0x06,0xe1,0x1f ,0x90,0x72,0x2c,0x0e,0x4c,0x0a,0x02,0xfc,0x4f,0x32,0x2a &#125;;void enc(char* fake, int i)&#123;    int i_1 = i;    i_1 = i - 14;    if (i &lt; 14)    i_1 = i;    //v11 = H[(((2 * i) | 1) - 14 * ((147 * ((2 * i) | 1)) &gt;&gt; 11))] + (*fake^ H[i_1]);    //*fake = H[(i + 4) % 14] ^ ((v11 &lt;&lt; (H[(i + 3) % 14] &amp; 7)) | (v11 &gt;&gt; (-H[(i + 3) % 14] &amp; 7)));    unsigned int index = (2 * i | 1);    index = index - 14 * ((147 * index) &gt;&gt; 11);    unsigned char v11 = H[index] + (*fake ^ H[i_1]);    unsigned char shift = H[(i + 3) % 14] &amp; 7;    unsigned char rotated = (v11 &lt;&lt; shift) | (v11 &gt;&gt; (8 - shift));    *fake = H[(i + 4) % 14] ^ rotated;&#125;int main()&#123;    char Input =  0;    char flag[27] = &#123; 0 &#125;;    for (int i = 0;i &lt; 27;i++)    &#123;        for (int j = 32;j &lt; 127;j++)        &#123;            Input = j;            enc(&amp;Input, i);            if (Input == cipher[i])            &#123;                flag[i] = j;                break;            &#125;        &#125;    &#125;    for (int i = 0;i &lt; 27;i++)        printf(&quot;%c&quot;, flag[i]);	return 0;&#125;//L3HCTF&#123;ez_rust_reverse_lol&#125;
 
-不能直接复制使用ida反编译的加密代码，因为char 类型在 C 语言中默认是有符号的，当值大于 127 时会变为负数，导致移位操作不正确，导致爆破错误flag缺失
+不能直接复制使用ida反编译的加密代码，因为char 类型在 C 语言中默认是有符号的，当值大于 127 时会变为负数，导致移位操作不正确，导致部分爆破失败flag缺失
 L3HCTF{ez_rust_reverse_lol}
 ]]></content>
       <categories>
