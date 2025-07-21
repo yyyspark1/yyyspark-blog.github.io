@@ -265,6 +265,90 @@ if (rand() == -1)
       </categories>
   </entry>
   <entry>
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+RC5 分组密钥算法 C语言实现
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
+
+每一轮：
+
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
+
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
+
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
+
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
+
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
+
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
+
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
+
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
+
+这里用两个“幻数”：
+
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
+
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
+
+在 C 语言里 uint32_t 类型是无符号32位整数。
+
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+
+
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
+
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
+
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
+
+数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
+
+为什么要转化为小端序呢？大端序不行嘛？
+vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Ptrace的简单实现(出题小计)</title>
     <url>/2025/06/10/Ptrace%E7%9A%84%E7%AE%80%E5%8D%95%E5%AE%9E%E7%8E%B0(%E5%87%BA%E9%A2%98%E5%B0%8F%E8%AE%A1)/</url>
     <content><![CDATA[Ptrace的简单实现(出题小计)参考文章：
@@ -318,15 +402,15 @@ PTRACE_TRACEME 的作用PTRACE_TRACEME 是 Linux 系统中 ptrace() 函数的一
 ptrace() 函数原型：
 #include &lt;sys/ptrace.h&gt;long ptrace(enum __ptrace_request request, pid_t pid, void *addr, void *data);
 
-
 参数：
 
-
 request：指定 ptrace 的操作类型（如 PTRACE_TRACEME、PTRACE_POKEDATA 等）。
-pid：目标进程的 PID（对 PTRACE_TRACEME 无效，填 0 或任意值）。
-addr：内存地址（用于读写内存等操作，对 PTRACE_TRACEME 无效，填 0 或任意值）。
-data：数据值（对 PTRACE_TRACEME 无效，填 0 或任意值）。
 
+pid：目标进程的 PID（对 PTRACE_TRACEME 无效，填 0 或任意值）。
+
+addr：内存地址（用于读写内存等操作，对 PTRACE_TRACEME 无效，填 0 或任意值）。
+
+data：数据值（对 PTRACE_TRACEME 无效，填 0 或任意值）。
 
 
 当一个进程调用 ptrace(PTRACE_TRACEME, 0, 0, 0) 时：
@@ -345,7 +429,7 @@ ptrace(PTRACE_TRACEME, 0, NULL, NULL);
 如果成功，子进程会被暂停，并发送 SIGTRAP 信号给父进程，父进程可以通过 wait() 等待并控制子进程。
 如果失败（例如已经有一个调试器在跟踪该进程），ptrace 会返回 -1，并设置 errno &#x3D; EPERM（权限错误）。
 
-当然，绕过这个反调试的方法也很简单（1）可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。
+当然，绕过这个反调试的方法也很简单(1)可以在在 ptrace 调用前断点，修改返回值，这样程序会认为没有被调试。
 (2) 使用 LD_PRELOAD 劫持 ptrace
 编写一个假的 ptrace 函数，返回 0：
 // fake_ptrace.clong ptrace(int request, pid_t pid, void *addr, void *data) &#123;    return 0; // 总是返回成功&#125;
@@ -466,12 +550,13 @@ argc：参数个数当你在命令行运行程序，比如：
 
 argc &#x3D; 4
 
-
 参数0: .&#x2F;son（程序名）
-参数1: 123
-参数2: abc
-参数3: def
 
+参数1: 123
+
+参数2: abc
+
+参数3: def
 
 
 所以，argc永远 &gt;&#x3D;1，因为第0个参数总是程序本身的路径（或者至少是它的名字）。
@@ -514,97 +599,13 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
 这里直接会输出第二部分密钥  flag{Good_You_defeated_yyyspark}
 调试截图
 
-三.最终题目代码（1）father#include &lt;stdio.h&gt;#include &lt;stdlib.h&gt;#include &lt;string.h&gt;#include&lt;stdint.h&gt;#include &lt;sys/ptrace.h&gt;#include &lt;sys/types.h&gt;#include &lt;sys/wait.h&gt;#include &lt;unistd.h&gt;#include &lt;errno.h&gt;#define OPCODE_N 6unsigned char vm_code[] = &#123;    0xf1, 0xe0, 0x66, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00,0x00, 0x00, 0x00,    0xf1, 0xe0, 0x6c, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,    0xf1, 0xe0, 0x61, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,    0xf1, 0xe0, 0x67, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,    0xf1, 0xe0, 0x7b, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,      0xf1, 0xe0, 0x5d, 0x00, 0x00, 0x00,      0xf6,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x6d, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x75, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x7e, 0x00, 0x00, 0x00,     0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x5d, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x5f, 0x00, 0x00, 0x00,      0xf3,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x75, 0x00, 0x00, 0x00,     0xf6,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x73, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x65, 0x00, 0x00, 0x00,      0xf3,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x7e, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x63, 0x00, 0x00, 0x00,     0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x6c, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x7f, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x5f, 0x00, 0x00, 0x00,      0xf2,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,       0xf1, 0xe2, 0x7a, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x7f, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x62, 0x00, 0x00, 0x00,      0xf2,                                      0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x65, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x63, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x77, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x7f, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x69, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x6e, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe2, 0x67, 0x00, 0x00, 0x00,      0xf3,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe0, 0x68, 0x00, 0x00, 0x00,      0xf6,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,        0xf1, 0xe1, 0x69, 0x00, 0x00, 0x00,      0xf2,                                       0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,    0xf1, 0xe0, 0x7d, 0x00, 0x00, 0x00,    0xf1, 0xe4, 0x00, 0x00, 0x00, 0x00,    0xf7&#125;;typedef struct&#123;	unsigned char opcode;	void (*handle)(void*);&#125;vm_opcode;typedef struct&#123;	unsigned long r0;	unsigned long r1;	unsigned long r2;	unsigned long r3;	unsigned char *eip;	vm_opcode op_list[OPCODE_N];&#125;vm_cpu;void mov(vm_cpu* cpu);void add(vm_cpu* cpu);void sub(vm_cpu* cpu);void mul(vm_cpu* cpu);void _div(vm_cpu* cpu);void _xor (vm_cpu* cpu);void vm_dispatcher(vm_cpu* cpu);void vm_start(vm_cpu* cpu);unsigned char* vm_stack = NULL;char key2[32];vm_cpu* vm_init() &#123;	vm_cpu* cpu = (vm_cpu*)malloc(sizeof(vm_cpu));	memset(cpu, 0, sizeof(vm_cpu));	cpu-&gt;r0 = 0;	cpu-&gt;r1 = 0;	cpu-&gt;r2 = 0;	cpu-&gt;r3 = 0;	cpu-&gt;eip = vm_code;	cpu-&gt;op_list[0].opcode = 0xf1;	cpu-&gt;op_list[0].handle = (void (*)(void*))mov;	cpu-&gt;op_list[1].opcode = 0xf2;	cpu-&gt;op_list[1].handle = (void (*)(void*))add;	cpu-&gt;op_list[2].opcode = 0xf3;	cpu-&gt;op_list[2].handle = (void (*)(void*))sub;	cpu-&gt;op_list[3].opcode = 0xf4;	cpu-&gt;op_list[3].handle = (void (*)(void*))mul;	cpu-&gt;op_list[4].opcode = 0xf5;	cpu-&gt;op_list[4].handle = (void (*)(void*))_div;	cpu-&gt;op_list[5].opcode = 0xf6;	cpu-&gt;op_list[5].handle = (void (*)(void*))_xor;	vm_stack = (unsigned char*)malloc(0x512);	memset(vm_stack, 0, 0x512);	return cpu;&#125;//虚拟机的入口函数，对虚拟机环境进行初始化void vm_start(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;eip = (unsigned char*)vm_code;	while (*(cpu-&gt;eip) != 0xf7)//如果opcode不为RET，就调用vm_dispatcher来解释执行	&#123;		vm_dispatcher(cpu);	&#125;&#125;//分发器，解释opcode，并选择对应的handle函数执行，当handle执行完后会跳回这里，形成一个循环。void vm_dispatcher(vm_cpu* cpu)&#123;	if (!cpu) return;	for (int i = 0; i &lt; OPCODE_N; i++)	&#123;		if (*cpu-&gt;eip == cpu-&gt;op_list[i].opcode)		&#123;			cpu-&gt;op_list[i].handle(cpu);			break;		&#125;	&#125;&#125;/// add指令实现void add(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r1 + 2;	cpu-&gt;eip += 1;&#125;// sub指令实现void sub(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r2 - 6;	cpu-&gt;eip += 1;&#125;// mul指令实现void mul(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r3 * 3;	cpu-&gt;eip += 1;&#125;// _div指令实现void _div(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r3 / 3;	cpu-&gt;eip += 1;&#125;// _XOR指令实现void _xor (vm_cpu* cpu) &#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r0 ^ 26;	cpu-&gt;eip += 1; // 指令长度1字节&#125;// MOV指令实现void mov(vm_cpu* cpu) &#123;	static int i = 0;	unsigned char reg = *(cpu-&gt;eip + 1); // 寄存器标识	int offset = *(int*)(cpu-&gt;eip + 2); // 栈偏移量	switch (reg) &#123;	case 0xe0: // 从栈加载到R0		cpu-&gt;r0 = *(int*)(cpu-&gt;eip + 2);		break;	case 0xe1: // 从栈加载到R1		cpu-&gt;r1 = *(int*)(cpu-&gt;eip + 2);		break;	case 0xe2: // 从栈加载到R2		cpu-&gt;r2 = *(int*)(cpu-&gt;eip + 2);		break;	case 0xe3: // 从栈加载到R3		cpu-&gt;r3 = *(int*)(cpu-&gt;eip + 2);		break;	case 0xe4: // 从R1存储到栈		key2[i] = cpu-&gt;r0;		i++;		break;	&#125;	cpu-&gt;eip += 6; // MOV指令占6字节&#125;int main()&#123;    vm_cpu* cpu = vm_init();	if (cpu) &#123;		vm_start(cpu);		free(vm_stack);		free(cpu);	&#125;    printf(&quot;Input your key:&quot;);    fflush(stdout);    char key1[64];    scanf(&quot;%32s&quot;, key1);    pid_t child;    child = fork();    if(child)    &#123;        if (child &lt; 0)        &#123;            perror(&quot;fork&quot;);            return -1;        &#125;        printf(&quot;Waiting for child...\n&quot;);        fflush(stdout);        wait(NULL);        printf(&quot;Wait done.\n&quot;);        fflush(stdout);        long patch_value = 3;        if (ptrace(PTRACE_POKEDATA, child, (void*)0x404060, (void*)patch_value) == -1) &#123;            perror(&quot;ptrace POKEDATA&quot;);        &#125; else &#123;            printf(&quot;Patched success\n&quot;);        &#125;        fflush(stdout);        if (ptrace(PTRACE_CONT, child, NULL, NULL) == -1) &#123;            perror(&quot;ptrace CONT&quot;);        &#125;        printf(&quot;Continued child.\n&quot;);        fflush(stdout);        wait(NULL);        printf(&quot;Child exited.\n&quot;);        fflush(stdout);    &#125;    else    &#123;        if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1) &#123;            printf(&quot;NONONO!!!\n&quot;);            exit(1);        &#125;        execl(&quot;./son1&quot;, &quot;son1&quot;, key1, 0);        perror(&quot;execl&quot;);        exit(1);    &#125;    return 0;&#125;
+三.最终题目代码（1）father#include&lt;stdio.h&gt;#include&lt;stdlib.h&gt;#include&lt;string.h&gt;#include&lt;stdint.h&gt;#define OPCODE_N 6int i = 0;unsigned char vm_code[] =&#123;0xF1,0xE1,0x3A,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x4F,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x29,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x6D,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x52,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x21,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x43,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x68,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x3D,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x58,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x49,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x2F,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x6A,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x17,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x5C,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x40,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x3F,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x66,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x2B,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x72,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x57,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x3C,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x69,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x23,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x4B,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x5D,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x33,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x4E,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x61,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x3B,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE1,0x46,0x00,0x00,0x00,0xF2,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF1,0xE2,0x70,0x00,0x00,0x00,0xF3,0xF6,0xF1,0xE4,0x00,0x00,0x00,0x00,0xF7&#125;;typedef struct&#123;	unsigned char opcode;	void (*handle)(void*);&#125;vm_opcode;typedef struct&#123;	unsigned long r0;	unsigned long r1;	unsigned long r2;	unsigned long r3;	unsigned char* eip;	vm_opcode op_list[OPCODE_N];&#125;vm_cpu;void mov(vm_cpu* cpu);void add(vm_cpu* cpu);void sub(vm_cpu* cpu);void mul(vm_cpu* cpu);void _div(vm_cpu* cpu);void _xor(vm_cpu* cpu);void vm_dispatcher(vm_cpu* cpu);void vm_start(vm_cpu* cpu);unsigned char* vm_stack = NULL;char key2[32]&#123;&#125;;char Input[33]&#123;&#125;;vm_cpu* vm_init()&#123;	vm_cpu* cpu = (vm_cpu*)malloc(sizeof(vm_cpu));	memset(cpu, 0, sizeof(vm_cpu));	cpu-&gt;r0 = 0;	cpu-&gt;r1 = 0;	cpu-&gt;r2 = 0;	cpu-&gt;r3 = 0;	cpu-&gt;eip = vm_code;	cpu-&gt;op_list[0].opcode = 0xf1;	cpu-&gt;op_list[0].handle = (void (*)(void*))mov;	cpu-&gt;op_list[1].opcode = 0xf2;	cpu-&gt;op_list[1].handle = (void (*)(void*))add;	cpu-&gt;op_list[2].opcode = 0xf3;	cpu-&gt;op_list[2].handle = (void (*)(void*))sub;	cpu-&gt;op_list[3].opcode = 0xf4;	cpu-&gt;op_list[3].handle = (void (*)(void*))mul;	cpu-&gt;op_list[4].opcode = 0xf5;	cpu-&gt;op_list[4].handle = (void (*)(void*))_div;	cpu-&gt;op_list[5].opcode = 0xf6;	cpu-&gt;op_list[5].handle = (void (*)(void*))_xor;	vm_stack = (unsigned char*)malloc(0x512);	memset(vm_stack, 0, 0x512);	return cpu;&#125;//虚拟机的入口函数，对虚拟机环境进行初始化void vm_start(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;eip = (unsigned char*)vm_code;	while (*(cpu-&gt;eip) != 0xf7)//如果opcode不为RET，就调用vm_dispatcher来解释执行	&#123;		vm_dispatcher(cpu);	&#125;&#125;//分发器，解释opcode，并选择对应的handle函数执行，当handle执行完后会跳回这里，形成一个循环。void vm_dispatcher(vm_cpu* cpu)&#123;	if (!cpu) return;	for (int i = 0; i &lt; OPCODE_N; i++)	&#123;		if (*cpu-&gt;eip == cpu-&gt;op_list[i].opcode)		&#123;			cpu-&gt;op_list[i].handle(cpu);			break;		&#125;	&#125;&#125;// add指令实现void add(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r1 + 2;	cpu-&gt;eip += 1;	printf(&quot;R0 = R1 + 2\n&quot;);&#125;// sub指令实现void sub(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r2 - 6;	cpu-&gt;eip += 1;	printf(&quot;R0 = R2 - 6\n&quot;);&#125;// mul指令实现void mul(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r3 * 3;	cpu-&gt;eip += 1;	printf(&quot;R0 = R3 * 3\n&quot;);&#125;// _div指令实现void _div(vm_cpu* cpu)&#123;	if (!cpu) return;	cpu-&gt;eip += 1;&#125;// _XOR指令实现void _xor(vm_cpu* cpu) &#123;	if (!cpu) return;	cpu-&gt;r0 = cpu-&gt;r0 ^ key2[i];	cpu-&gt;eip += 1; // 指令长度1字节	printf(&quot;R0 = R0 ^ key2[%d]\n&quot;,i);&#125;// MOV指令实现void mov(vm_cpu* cpu) &#123;	unsigned char reg = *(cpu-&gt;eip + 1); // 寄存器标识	int offset = *(int*)(cpu-&gt;eip + 2); // 栈偏移量	switch (reg) &#123;	case 0xe0: // 从栈加载到R0		cpu-&gt;r0 = *(int*)(cpu-&gt;eip + 2);		printf(&quot;mov R0  %x\n&quot;, *(int*)(cpu-&gt;eip + 2));		break;	case 0xe1: // 从栈加载到R1		cpu-&gt;r1 = *(int*)(cpu-&gt;eip + 2);		printf(&quot;mov R1  %x\n&quot;, *(int*)(cpu-&gt;eip + 2));		break;	case 0xe2: // 从栈加载到R2		cpu-&gt;r2 = *(int*)(cpu-&gt;eip + 2);		printf(&quot;mov R2  %x\n&quot;, *(int*)(cpu-&gt;eip + 2));		break;	case 0xe3: // 从栈加载到R3		cpu-&gt;r3 = *(int*)(cpu-&gt;eip + 2);		printf(&quot;mov R3  %x\n&quot;, *(int*)(cpu-&gt;eip + 2));		break;	case 0xe4: // 从R1存储到栈		key2[i] = cpu-&gt;r0;		printf(&quot;mov key2[%d]  R0\n&quot;, i);		i++;		break;	&#125;	cpu-&gt;eip += 6; // MOV指令占6字节&#125;char cipher[] = &#123; 0x5a,0x25,0x4a,0,0x2f,0x5c,0x75,0x52,0x5b,0xd,0x12,0x19,0x19,0x4e,0x3a,0xe,0x27,0x5,0x4c,0x18,0x3c,0x52,0x34,0x64,0x34,0x2e,0x46,0x38,0x2,0x47,0x23,0x17 &#125;;int main()&#123;	vm_cpu* cpu = vm_init();	if (cpu) &#123;		printf(&quot;Please enter your key2:\n&quot;);		scanf_s(&quot;%s&quot;, Input, 33);		for (int j = 0;j &lt; 32;j++)			key2[j] = Input[j];		vm_start(cpu);		int count = 1;		for (int i = 0;i &lt; 32;i++)			if (key2[i] != cipher[i])			&#123;				count = 0;				break;			&#125;		if (count == 0)			printf(&quot;Wrong. You&#x27;ve been defeated by yyyspark.\n&quot;);		else			printf(&quot;Part one is correct.\n&quot;);		free(vm_stack);		free(cpu);	&#125;	return 0;&#125;//flag&#123;G00d_Y0u_d4feated_yyyspark&#125;
 
-（2）son#include &lt;stdio.h&gt;#include &lt;string.h&gt;#include &lt;stdlib.h&gt;#include&lt;stdint.h&gt;// 全局变量模拟伪代码中的byte数组unsigned char aaaaa[32] = &#123;  0xCC, 0x8D, 0x2C, 0xEC, 0x6F, 0x88, 0xED, 0xEB, 0x2F, 0xED,   0xAE, 0xEB, 0x4E, 0xAC, 0x2C, 0x8D, 0x8D, 0x2F, 0xEB, 0x6D,   0xCD, 0xED, 0xEE, 0xEB, 0x0E, 0x8E, 0x4E, 0x2C, 0x6C, 0xAC,   0xE7, 0xAF&#125;; // 正确的flag转换结果unsigned char byte_60004080[32] = &#123;0&#125;;int dword_60004040 = 4; // 偏移位数int main(int argc, char **argv) &#123;    char *s = argv[1];    int v6 = strlen(s);    // 实际验证逻辑    for (int i = 0; i &lt; v6; ++i) &#123;        byte_60004080[i] = (s[i] &gt;&gt; dword_60004040) | (s[i] &lt;&lt; (8 - dword_60004040));    &#125;    int correct = 1;    for (int i = 0; i &lt; v6; ++i) &#123;        if (byte_60004080[i] != aaaaa[i]) &#123;            puts(&quot;key1 is Wrong~&quot;);            correct = 0;            break;        &#125;    &#125;    if (correct) &#123;        puts(&quot;key1 is right~\n\n&quot;);        puts(&quot;flag is  flag&#123;The MD5 value of (key1 XOR key2)&#125;&quot;);    &#125;    return 0;&#125;
+（2）son#include &lt;stdio.h&gt;#include &lt;string.h&gt;#include &lt;stdlib.h&gt;#include&lt;stdint.h&gt;// 全局变量模拟伪代码中的byte数组unsigned char aaaaa[32] = &#123;  0xCC, 0x8D, 0x2C, 0xEC, 0x6F, 0x88, 0xED, 0xEB, 0x2F, 0xED,   0xAE, 0xEB, 0x4E, 0xAC, 0x2C, 0x8D, 0x8D, 0x2F, 0xEB, 0x6D,   0xCD, 0xED, 0xEE, 0xEB, 0x0E, 0x8E, 0x4E, 0x2C, 0x6C, 0xAC,   0xE7, 0xAF&#125;; // 正确的flag转换结果unsigned char byte_60004080[32] = &#123;0&#125;;int dword_60004040 = 4; // 偏移位数int main(int argc, char **argv) &#123;    char *s = argv[1];    int v6 = strlen(s);    // 实际验证逻辑    for (int i = 0; i &lt; v6; ++i) &#123;        byte_60004080[i] = (s[i] &gt;&gt; dword_60004040) | (s[i] &lt;&lt; (8 - dword_60004040));    &#125;    int correct = 1;    for (int i = 0; i &lt; v6; ++i) &#123;        if (byte_60004080[i] != aaaaa[i]) &#123;            puts(&quot;key1 is Wrong~&quot;);            correct = 0;            break;        &#125;    &#125;    if (correct) &#123;        puts(&quot;key1 is right~\n\n&quot;);        puts(&quot;flag is  flag&#123;The MD5 value of (十进制(key1 XOR key2))&#125;&quot;);    &#125;    return 0;&#125;
 
 运行截图
 ​    
-最终flag：flag{95f88fa864969b354911b3793c7e49d3}
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-RC5 分组密钥算法 C语言实现
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
-
-每一轮：
-
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
-
-
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
-
-数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
-
-为什么要转化为小端序呢？大端序不行嘛？
-vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+最终flag：flag{c0905a8ca94b41ec44bc02d3c623f96e}
 ]]></content>
       <categories>
         <category>Windows逆向</category>
