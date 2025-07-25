@@ -1,87 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Flutter与so文件动调</title>
-    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
-    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
-Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
-工具准备blutter 环境配置
-前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
-
-libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
-
-flutter_assets/：存放资源文件（图片、字体、配置文件等）。
-
-isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
-
-libflutter.so（Android）：Flutter 引擎库。
-
-
-恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
-
-然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
-python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
-
-以这道题目为例
-python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
-后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
-要注意一下so文件架构是否支持
-然后你会得到
-
-在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
-开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
-具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
-在 IDA 菜单栏点击 File → Load file → Parse C header
-
-选择 ida_script/ida_dart_struct.h
-
-勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
-
-
-3. 运行符号恢复脚本
-在 IDA 菜单栏点击 File → Script file
-
-选择 ida_script/addNames.py
-
-等待脚本执行完成
-
-
-完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
-SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
-//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
-
-当然你也可以通过指令进行h重命名
-adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
-
-步骤二：端口转发默认启动端口为23946。
-另开一个cmd执行如下指令：
-adb forward tcp:23946 tcp:23946
-
-第一个端口对应电脑端，第二个端口对应手机端。
-执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
-步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
-adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
-
-步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
-在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
-
-在菜单栏的Debugger -&gt; Process options中设置主机和端口
-
-默认端口127.0.0.1
-在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
-
-需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
-android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
-
-果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
-在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
-
-]]></content>
-      <categories>
-        <category>Android逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -322,6 +241,87 @@ if (rand() == -1)
 ]]></content>
       <categories>
         <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>Flutter与so文件动调</title>
+    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
+    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
+Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
+工具准备blutter 环境配置
+前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
+
+libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
+
+flutter_assets/：存放资源文件（图片、字体、配置文件等）。
+
+isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
+
+libflutter.so（Android）：Flutter 引擎库。
+
+
+恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
+
+然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
+python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
+
+以这道题目为例
+python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
+后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
+要注意一下so文件架构是否支持
+然后你会得到
+
+在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
+开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
+具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
+在 IDA 菜单栏点击 File → Load file → Parse C header
+
+选择 ida_script/ida_dart_struct.h
+
+勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
+
+
+3. 运行符号恢复脚本
+在 IDA 菜单栏点击 File → Script file
+
+选择 ida_script/addNames.py
+
+等待脚本执行完成
+
+
+完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
+SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
+//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
+
+当然你也可以通过指令进行h重命名
+adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
+
+步骤二：端口转发默认启动端口为23946。
+另开一个cmd执行如下指令：
+adb forward tcp:23946 tcp:23946
+
+第一个端口对应电脑端，第二个端口对应手机端。
+执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
+步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
+adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
+
+步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
+在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
+
+在菜单栏的Debugger -&gt; Process options中设置主机和端口
+
+默认端口127.0.0.1
+在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
+
+需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
+android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
+
+果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
+在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
+
+]]></content>
+      <categories>
+        <category>Android逆向</category>
       </categories>
   </entry>
   <entry>
