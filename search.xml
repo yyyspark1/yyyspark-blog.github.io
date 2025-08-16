@@ -1,6 +1,120 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Flutter与so文件动调</title>
+    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
+    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
+Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
+工具准备blutter 环境配置
+前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
+
+libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
+
+flutter_assets/：存放资源文件（图片、字体、配置文件等）。
+
+isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
+
+libflutter.so（Android）：Flutter 引擎库。
+
+
+恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
+
+然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
+python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
+
+以这道题目为例
+python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
+后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
+要注意一下so文件架构是否支持
+然后你会得到
+
+在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
+开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
+具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
+在 IDA 菜单栏点击 File → Load file → Parse C header
+
+选择 ida_script/ida_dart_struct.h
+
+勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
+
+
+3. 运行符号恢复脚本
+在 IDA 菜单栏点击 File → Script file
+
+选择 ida_script/addNames.py
+
+等待脚本执行完成
+
+
+完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
+SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
+//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
+
+当然你也可以通过指令进行h重命名
+adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
+
+步骤二：端口转发默认启动端口为23946。
+另开一个cmd执行如下指令：
+adb forward tcp:23946 tcp:23946
+
+第一个端口对应电脑端，第二个端口对应手机端。
+执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
+步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
+adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
+
+步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
+在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
+
+在菜单栏的Debugger -&gt; Process options中设置主机和端口
+
+默认端口127.0.0.1
+在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
+
+需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
+android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
+
+果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
+在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
+
+为什么要将两个属性设置为True呢？当android:extractNativeLibs=&quot;true&quot;时安装 APK 时系统会把里面的 .so 解压到磁盘，例如：
+/data/app/com.xxx.xxx-xxxx/lib/arm64/libtarget.so
+
+
+进程加载时，linker 会从这个路径用 mmap 映射到内存。
+因为有实际的文件路径，IDA 动态调试时 attach 到进程，就能看到这个映射关系（maps 里会有一行带 libtarget.so 的路径）。
+这样 IDA 就可以直接自动关联你的 .so 文件，地址对齐也正确。
+
+当android:extractNativeLibs=&quot;false&quot;时
+这种情况下，APK 安装后不会把 .so 文件解压出来，而是 直接在 APK 压缩包里。
+当程序运行时，linker 会用一种特殊的方式：
+
+打开 base.apk
+定位 zip 里的 .so
+mmap 那段压缩包里的数据
+然后根据 ELF 头信息建立 soinfo 结构，把段映射到内存里
+
+
+所以内存里依然有 ELF 格式的 .so，但是磁盘上没有独立文件，/proc/&lt;pid&gt;/maps 里只会显示类似：
+
+
+/data/app/com.xxx.xxx-xxxx/base.apk!lib/arm64/libtarget.so
+
+
+因为没有真实文件，IDA attach 的时候就没法直接知道应该如何和你本地的 libtarget.so 对齐。
+
+android:debuggable=&quot;true&quot; 这个属性呢？这个属性和前面 extractNativeLibs 不一样，它完全是 跟调试器 attach 权限相关的。
+
+它是 AndroidManifest.xml 里的 application 节点属性。
+
+决定了这个应用能不能被外部调试器（如 IDA、gdb、Android Studio Debugger）attach。
+
+
+]]></content>
+      <categories>
+        <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -244,117 +358,133 @@ if (rand() == -1)
       </categories>
   </entry>
   <entry>
-    <title>Flutter与so文件动调</title>
-    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
-    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
-Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
-工具准备blutter 环境配置
-前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+RC5 分组密钥算法 C语言实现
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
 
-libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
+每一轮：
 
-flutter_assets/：存放资源文件（图片、字体、配置文件等）。
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
 
-isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
 
-libflutter.so（Android）：Flutter 引擎库。
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
 
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
 
-恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
 
-然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
-python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
 
-以这道题目为例
-python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
-后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
-要注意一下so文件架构是否支持
-然后你会得到
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
 
-在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
-开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
-具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
-在 IDA 菜单栏点击 File → Load file → Parse C header
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
 
-选择 ida_script/ida_dart_struct.h
+这里用两个“幻数”：
 
-勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
 
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
 
-3. 运行符号恢复脚本
-在 IDA 菜单栏点击 File → Script file
+在 C 语言里 uint32_t 类型是无符号32位整数。
 
-选择 ida_script/addNames.py
-
-等待脚本执行完成
-
-
-完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
-SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
-//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
-
-当然你也可以通过指令进行h重命名
-adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
-
-步骤二：端口转发默认启动端口为23946。
-另开一个cmd执行如下指令：
-adb forward tcp:23946 tcp:23946
-
-第一个端口对应电脑端，第二个端口对应手机端。
-执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
-步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
-adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
-
-步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
-在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
-
-在菜单栏的Debugger -&gt; Process options中设置主机和端口
-
-默认端口127.0.0.1
-在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
-
-需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
-android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
-
-果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
-在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
-
-为什么要将两个属性设置为True呢？当android:extractNativeLibs=&quot;true&quot;时安装 APK 时系统会把里面的 .so 解压到磁盘，例如：
-/data/app/com.xxx.xxx-xxxx/lib/arm64/libtarget.so
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
 
 
-进程加载时，linker 会从这个路径用 mmap 映射到内存。
-因为有实际的文件路径，IDA 动态调试时 attach 到进程，就能看到这个映射关系（maps 里会有一行带 libtarget.so 的路径）。
-这样 IDA 就可以直接自动关联你的 .so 文件，地址对齐也正确。
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
 
-当android:extractNativeLibs=&quot;false&quot;时
-这种情况下，APK 安装后不会把 .so 文件解压出来，而是 直接在 APK 压缩包里。
-当程序运行时，linker 会用一种特殊的方式：
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
 
-打开 base.apk
-定位 zip 里的 .so
-mmap 那段压缩包里的数据
-然后根据 ELF 头信息建立 soinfo 结构，把段映射到内存里
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
 
+数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
 
-所以内存里依然有 ELF 格式的 .so，但是磁盘上没有独立文件，/proc/&lt;pid&gt;/maps 里只会显示类似：
-
-
-/data/app/com.xxx.xxx-xxxx/base.apk!lib/arm64/libtarget.so
+为什么要转化为小端序呢？大端序不行嘛？
+vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
+示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
 
 
-因为没有真实文件，IDA attach 的时候就没法直接知道应该如何和你本地的 libtarget.so 对齐。
+这些值是某一密钥对应的扩展值，但看不到 key。
 
-android:debuggable=&quot;true&quot; 这个属性呢？这个属性和前面 extractNativeLibs 不一样，它完全是 跟调试器 attach 权限相关的。
+但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
 
-它是 AndroidManifest.xml 里的 application 节点属性。
 
-决定了这个应用能不能被外部调试器（如 IDA、gdb、Android Studio Debugger）attach。
+魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
+示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
+
+其中
+seed = seed * 1103515245 + 12345;
+这一整行其实是一个经典的伪随机数算法：
+
+Linear Congruential Generator（线性同余生成器，LCG）
+
+其形式为：
+seed = (a * seed + c) % m
+
+
+S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
+
+但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
+
+有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
+
+
+魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
+示例代码：
+uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
+
+
+你需要在调试器里看到 data 具体内容，才能提取 key。
+有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
+
+魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
+void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
+
+
+相当于只保留了部分轮数，或者所有轮都展开成常量。
+
+没有 key 也没有 S[]，你只能通过解密路径还原明文。
 
 
 ]]></content>
       <categories>
-        <category>Android逆向</category>
+        <category>Windows逆向</category>
       </categories>
   </entry>
   <entry>
@@ -621,255 +751,6 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
       </categories>
   </entry>
   <entry>
-    <title>初探Windows驱动逆向</title>
-    <url>/2025/06/03/%E5%88%9D%E6%8E%A2WIndows%E9%A9%B1%E5%8A%A8%E9%80%86%E5%90%91/</url>
-    <content><![CDATA[初探Windows逆向参考文章链接：
-Windows驱动快速入门
-Windows 驱动之IRP
-Windows驱动程序逆向工程方法
-Windows内核驱动程序静态逆向工程的方法论
-Windows驱动开发（三）—— 驱动和应用层通信的几种方式
-前置知识动因分析
-执行驱动程序分析时，收集以下信息很重要：
-识别DriverEntry并确定 IRP 调度处理程序。
-确定驱动程序是否附加到另一个设备以过滤&#x2F;拦截其 I&#x2F;O 请求。如果是这样，目标设备是什么？
-确定DeviceName.
-识别所有 IOCTL 代码及其相应的功能。确定他们使用什么缓冲方法。
-尝试了解所有部分是如何组合在一起的。
-
-Windows 驱动之IRP什么是IRP：I&#x2F;O request packets，简称IRP。即输入输出请求包。它是WINDOWS内核中的一种非常重要的数据结构。上层应用程序与底层驱动程序通信时，应用程序会发出I&#x2F;O请求。操作系统将相应的I&#x2F;O请求转换为相应的IRP。不同的IRP会根据类型被分派的不同的派遣历程中进行处理。
-作用：上层应用程序于底层驱动之间的通讯，即EXE程序和SYS之间的通讯。
-应用程序 想要访问内核数据，必须通过IRP数据。又叫IRP请求，当应用程序和驱动交互时，发送一个IRP请求，IRP会在各层设备驱动个之间来回传动和转发。
-符号链接和设备名windows下的设备是以”\Device[设备名]”形式命名的。
-例如磁盘分区的C盘，D盘的设备名称就是
-Text&quot;\Device\HarddiskVolume2”&quot;\Device\HarddiskVolume3”
-
-也可以不指定设备名称，那么I&#x2F;O管理器会自动分配一个数字作为设备的名称。例如
-Text&quot;\Device\00000001&quot;
-
-设备名不容易记忆。
-在驱动程序中，定义设备对象名称需要以L”\device\“开头，
-定义符号链接的名称需要以L”\dosDevices\“开头，（注意dosDevices中的最后一个字符是s，然后IoCreateSymbolicLink函数返回失败，半天找不到原因）；
-或者以L”\??\“开头也可以。
-符号链接可以理解为设备的别名，更重要的是，设备名只能被内核模式下的其他驱动所识别，而别名可以被用户模式下的应用程序识别。“C:”就是一个符号链接名。
-而在驱动中，符号链接名是这样写的：
-L”\??\c:”  —&gt; ??\c:L”\??\HelloDDK” —&gt;??\HelloDDKL”\DosDevices\HelloDDK”  —&gt; \DosDevices\HelloDDK
-在内核模式下，符号链接是以“??\”开头的，如C盘就是”??\C:”，
-在用户模式下，符号链接是以“\.\”开头的，如C盘就是”\.\C:”.
-因此在应用程序中，符号链接名：
-TextL&quot;\\\\.\\HelloDDK&quot;--&gt;\\.\HelloDDK
-
-在对驱动程序进行逆向工程时，当您看到这两个 API 被连续调用时，您可以确定您正在查看驱动程序中实例化设备和符号链接的部分。大多数情况下它只发生一次，因为大多数驱动程序只公开一个设备。
-R3和R0 的由来Intel的x86处理器是通过Ring级别来进行访问控制的，级别共分4层，从Ring0到Ring3（后面简称R0、R1、R2、R3）。R0层拥有最高的权限，R3层拥有最低的权限。按照Intel原有的构想，应用程序工作在R3层，只能访问R3层的数据；操作系统工作在R0层，可以访问所有层的数据；而其他驱动程序位于R1、R2层，每一层只能访问本层以及权限更低层的数据。
-这应该是很好的设计，这样操作系统工作在最核心层，没有其他代码可以修改它；其他驱动程序工作在R1、R2层，有要求则向R0层调用，这样可以有效保障操作系统的安全性。但现在的OS，包括Windows和Linux都没有采用4层权限，而只是使用2层——R0层和R3层，分别来存放操作系统数据和应用程序数据，从而导致一旦驱动加载了，就运行在R0层，就拥有了和操作系统同样的权限，可以做任何事情。
-驱动和应用层通信的几种方式目的在Windows系统中，驱动程序想要正常工作，往往离不开和用户态进程间的交互。因此，驱动和用户态进程的通信就成为了必不可少的手段。
-方式
-进程间通信
-
-由于Windows 操作系统中，内核线程运行于某个进程的地址空间中。因此，内核线程和用户进程的通信可以通过进程间通信的方式实现，例如文件映射、共享内存、管道等方式。
-
-I&#x2F;O请求
-
-通过实现IRP_MJ_READ、IRP_MJ_WRITE的请求，用户态进程直接通过设备读写的方式与驱动程序通信。
-驱动程序在接收到IRP时，根据具体需求选择直接返回数据；或者通过IoMarkIrpPending设置挂起状态，异步处理请求。
-Text将I/O请求转发到文件系统.过滤管理拦截请求按照循序A-B-C来调用已注册的微型过滤器,然后将 I/O 请求转发到下一个较低的驱动程序。文件系统驱动程序处理并转发修改后的请求。目标卷的存储驱动程序堆栈准备对硬件请求(HAL)。
-
-
-I&#x2F;O 控制
-
-通过调用DeviceIoControl发送设备控制代码，等待驱动层返回。
-从本质上来说，这种方式与通过IRP_MJ_READ、IRP_MJ_WRITE类似，都是通过封装IRP来实现。
-但是，DeviceIoControl允许用户自定义设备控制代码，使用上更加灵活。
-
-MiniFilter通信服务端口
-
-在微软的文件过滤器框架MiniFilter中，提供了一种独立的通信方式——CommunicationPort。
-// 驱动// 创建通信端口FltCreateCommunicationPort(pFilter, &amp;pServerPort, &amp;oa, NULL, ConnectNotifyCb, DisconnectNotifyCb, MessageNotifyCb, 1);// 发送消息FltSendMessage(pFilter, &amp;pClientPort,inbuffer, inlength, outbuffer, outlength, &amp;liTimeout);// 接收消息回调NTSTATUS MessageNotifyCb(  PVOID PortCookie,  PVOID InputBuffer,  ULONG InputBufferLength,  PVOID OutputBuffer,  ULONG OutputBufferLength,  PULONG ReturnOutputBufferLength)&#123;...&#125;// 关闭客户端连接FltCloseClientPort(pFilter, &amp;pClientPort);// 关闭端口FltCloseCommunicationPort(pServerPort);// 应用态// 连接通信端口FilterConnectCommunicationPort(c_sPortName, 0, NULL, 0, NULL, &amp;m_pConnectionPort);// 接收消息FilterGetMessage(m_pConnectionPort,lpMessageBuffer, dwMessageBufferSize, NULL);// 回复消息FilterReplyMessage(m_pConnectionPort, lpReplyBuffer, dwReplyBufferSize);// 发送消息FilterSendMessage(m_pConnectionPort, inbuffer, inlength, outbuffer, outlength, &amp;outlength);
-
-
-本地过程调用（LPC, Local Procedure Call）
-
-LPC 是 Windows 中的一种轻量级的进程间通信机制，允许在同一台计算机上的不同进程之间进行高效的消息传递。它主要用于用户模式与内核模式之间的交互。
-由于LPC是Windows系统内部使用的一种通信机制，微软没有提供任何的公开文档，因此在实际使用中可能存在一定风险。
-但是，相比于其他方式而言，LPC可以从驱动连接应用层创建的通信端口，使用上更为灵活。
-文件系统筛选器驱动程序（微筛选器）可截获发往某个文件系统或其他文件系统筛选器驱动程序的请求。
-驱动入口DriverEntry与C&#x2F;C++语言中的main()函数非常相似，驱动程序必须指定入口点DriverEntry。
-DriverEntry要负责很多工作，例如创建设备对象、创建用于与驱动程序和核心函数（IRP Handler、卸载函数、回调例程等）进行通信的符号链接。
-DriverEntry首先使用到IoCreateDevice()或IoCreateDeviceSecure()的调用来创建设备对象，后者通常用于将安全描述符应用于设备对象，以限制对本地管理员和NT AUTHORITYSYSTEM的访问。
-接下来，DriveEntry将IoCreateSymbolicLink()与先前创建的设备对象一起使用，以建立符号链接，该链接将允许用户模式进程与驱动程序进行通信。
-IRP HandlerIRP（I&#x2F;O Request Packet）处理程序是 Windows 驱动开发中最核心的组件之一，它负责处理所有进出驱动的 I&#x2F;O 请求。
-在几乎所有情况下，对我们来说最重要的主要函数是IRP_MJ_DEVICE_CONTROL，该函数用于发送请求，以从用户模式执行特定的内部函数。这些请求中包括一个IO控制代码，该代码负责通知驱动程序具体的操作，还包含一个向驱动程序发送数据和从驱动程序接收数据的缓冲区。
-列题2025-H&amp;NCTF-HNDRIVER先运行程序得到
-
-题⽬提供了个类似Base64的东西
-我们将exe文件反编译分析一下
-
-这里是将 Windows 用户层应用程序，用于与内核驱动程序进行通信，我们重点看 if 判断的那个函数，点进去一路追到函数sub_1400030F0
-
-这里看到函数FilterConnectCommunicationPort
-这个函数我在前置知识有说，是用来连接通信端口
-该函数具体参数如下
-FilterConnectCommunicationPort(  _In_ PCWSTR PortName,                 // 端口名称  _In_ ULONG Options,                   // 连接选项  _In_opt_ PVOID ConnectionContext,     // 连接上下文数据  _In_ ULONG SizeOfContext,             // 上下文数据大小  _In_opt_ PSECURITY_ATTRIBUTES SecurityAttributes, // 安全描述符  _Out_opt_ PPORT_MESSAGE *ConnectionCookie // 连接令牌（可选）);
-
-使用 FilterConnectCommunicationPort 函数尝试连接到名为 \HNCTFNamedPipe 的内核通信端口，然后传了上下文数据进去（也就是用户输入）
-个程序只是把用户输整个程序只是把用户输入传给了驱动
-然后我们分析sys驱动文件，先查看函数DriverEntry
-
-可以查看一下各个函数，里面什么没有加密部分，查看函数名那一栏
-发现了一个无xref的构造函数入传
-这个函数有个很明显的部分
-
-PostWriteOperation回调函数：
-是 Windows 文件系统微筛选器驱动（Minifilter）中的一种后置操作回调函数，用于在文件写入操作完成后执行自定义逻辑。
-
-FltGetStreamHandleContext函数是用来****获取上下文
-​    
-其中**v7 &#x3D; sub_1400010C0(Pool, v19, &amp;P, &amp;v23, v29);**是一个接受自定义base64表的base64编码函数，base64表v29由上文的sub_140001894(v29);生成，查看这个函数
-​    
-逐步分析各个函数
-​    
-​    
-发现加密逻辑：
-先是将给出的数据进行一个异或，然后将异或后的数据进行打乱交换得到一个64字节的数据(+6K8hvNwEoMeDjXQUSR3q0dZYupgA17FrT94OsByWzk2CfLc&#x2F;GtJVIPbaxnlmHi5)，结合之前程序里面的字符串
-然后我们接着看sub_1400010C0函数
-​    
-很明显的base64的逻辑 得到flag：H&amp;NCTF{3z_M1n1f1173r_C0mmun1c4710n_b9c1daa9-a2b3-491f975b-de44e76e0a99}
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-RC5 分组密钥算法 C语言实现
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
-
-每一轮：
-
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
-
-
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
-
-数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
-
-为什么要转化为小端序呢？大端序不行嘛？
-vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
-RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
-示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
-
-
-这些值是某一密钥对应的扩展值，但看不到 key。
-
-但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
-
-
-魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
-示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
-
-其中
-seed = seed * 1103515245 + 12345;
-这一整行其实是一个经典的伪随机数算法：
-
-Linear Congruential Generator（线性同余生成器，LCG）
-
-其形式为：
-seed = (a * seed + c) % m
-
-
-S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
-
-但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
-
-有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
-
-
-魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
-示例代码：
-uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
-
-
-你需要在调试器里看到 data 具体内容，才能提取 key。
-有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
-
-魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
-void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
-
-
-相当于只保留了部分轮数，或者所有轮都展开成常量。
-
-没有 key 也没有 S[]，你只能通过解密路径还原明文。
-
-
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>SM4加密原理解析</title>
     <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
     <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
@@ -1012,6 +893,125 @@ B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;
 X[i+4] = X[i] ^ C
 
 整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>初探Windows驱动逆向</title>
+    <url>/2025/06/03/%E5%88%9D%E6%8E%A2WIndows%E9%A9%B1%E5%8A%A8%E9%80%86%E5%90%91/</url>
+    <content><![CDATA[初探Windows逆向参考文章链接：
+Windows驱动快速入门
+Windows 驱动之IRP
+Windows驱动程序逆向工程方法
+Windows内核驱动程序静态逆向工程的方法论
+Windows驱动开发（三）—— 驱动和应用层通信的几种方式
+前置知识动因分析
+执行驱动程序分析时，收集以下信息很重要：
+识别DriverEntry并确定 IRP 调度处理程序。
+确定驱动程序是否附加到另一个设备以过滤&#x2F;拦截其 I&#x2F;O 请求。如果是这样，目标设备是什么？
+确定DeviceName.
+识别所有 IOCTL 代码及其相应的功能。确定他们使用什么缓冲方法。
+尝试了解所有部分是如何组合在一起的。
+
+Windows 驱动之IRP什么是IRP：I&#x2F;O request packets，简称IRP。即输入输出请求包。它是WINDOWS内核中的一种非常重要的数据结构。上层应用程序与底层驱动程序通信时，应用程序会发出I&#x2F;O请求。操作系统将相应的I&#x2F;O请求转换为相应的IRP。不同的IRP会根据类型被分派的不同的派遣历程中进行处理。
+作用：上层应用程序于底层驱动之间的通讯，即EXE程序和SYS之间的通讯。
+应用程序 想要访问内核数据，必须通过IRP数据。又叫IRP请求，当应用程序和驱动交互时，发送一个IRP请求，IRP会在各层设备驱动个之间来回传动和转发。
+符号链接和设备名windows下的设备是以”\Device[设备名]”形式命名的。
+例如磁盘分区的C盘，D盘的设备名称就是
+Text&quot;\Device\HarddiskVolume2”&quot;\Device\HarddiskVolume3”
+
+也可以不指定设备名称，那么I&#x2F;O管理器会自动分配一个数字作为设备的名称。例如
+Text&quot;\Device\00000001&quot;
+
+设备名不容易记忆。
+在驱动程序中，定义设备对象名称需要以L”\device\“开头，
+定义符号链接的名称需要以L”\dosDevices\“开头，（注意dosDevices中的最后一个字符是s，然后IoCreateSymbolicLink函数返回失败，半天找不到原因）；
+或者以L”\??\“开头也可以。
+符号链接可以理解为设备的别名，更重要的是，设备名只能被内核模式下的其他驱动所识别，而别名可以被用户模式下的应用程序识别。“C:”就是一个符号链接名。
+而在驱动中，符号链接名是这样写的：
+L”\??\c:”  —&gt; ??\c:L”\??\HelloDDK” —&gt;??\HelloDDKL”\DosDevices\HelloDDK”  —&gt; \DosDevices\HelloDDK
+在内核模式下，符号链接是以“??\”开头的，如C盘就是”??\C:”，
+在用户模式下，符号链接是以“\.\”开头的，如C盘就是”\.\C:”.
+因此在应用程序中，符号链接名：
+TextL&quot;\\\\.\\HelloDDK&quot;--&gt;\\.\HelloDDK
+
+在对驱动程序进行逆向工程时，当您看到这两个 API 被连续调用时，您可以确定您正在查看驱动程序中实例化设备和符号链接的部分。大多数情况下它只发生一次，因为大多数驱动程序只公开一个设备。
+R3和R0 的由来Intel的x86处理器是通过Ring级别来进行访问控制的，级别共分4层，从Ring0到Ring3（后面简称R0、R1、R2、R3）。R0层拥有最高的权限，R3层拥有最低的权限。按照Intel原有的构想，应用程序工作在R3层，只能访问R3层的数据；操作系统工作在R0层，可以访问所有层的数据；而其他驱动程序位于R1、R2层，每一层只能访问本层以及权限更低层的数据。
+这应该是很好的设计，这样操作系统工作在最核心层，没有其他代码可以修改它；其他驱动程序工作在R1、R2层，有要求则向R0层调用，这样可以有效保障操作系统的安全性。但现在的OS，包括Windows和Linux都没有采用4层权限，而只是使用2层——R0层和R3层，分别来存放操作系统数据和应用程序数据，从而导致一旦驱动加载了，就运行在R0层，就拥有了和操作系统同样的权限，可以做任何事情。
+驱动和应用层通信的几种方式目的在Windows系统中，驱动程序想要正常工作，往往离不开和用户态进程间的交互。因此，驱动和用户态进程的通信就成为了必不可少的手段。
+方式
+进程间通信
+
+由于Windows 操作系统中，内核线程运行于某个进程的地址空间中。因此，内核线程和用户进程的通信可以通过进程间通信的方式实现，例如文件映射、共享内存、管道等方式。
+
+I&#x2F;O请求
+
+通过实现IRP_MJ_READ、IRP_MJ_WRITE的请求，用户态进程直接通过设备读写的方式与驱动程序通信。
+驱动程序在接收到IRP时，根据具体需求选择直接返回数据；或者通过IoMarkIrpPending设置挂起状态，异步处理请求。
+Text将I/O请求转发到文件系统.过滤管理拦截请求按照循序A-B-C来调用已注册的微型过滤器,然后将 I/O 请求转发到下一个较低的驱动程序。文件系统驱动程序处理并转发修改后的请求。目标卷的存储驱动程序堆栈准备对硬件请求(HAL)。
+
+
+I&#x2F;O 控制
+
+通过调用DeviceIoControl发送设备控制代码，等待驱动层返回。
+从本质上来说，这种方式与通过IRP_MJ_READ、IRP_MJ_WRITE类似，都是通过封装IRP来实现。
+但是，DeviceIoControl允许用户自定义设备控制代码，使用上更加灵活。
+
+MiniFilter通信服务端口
+
+在微软的文件过滤器框架MiniFilter中，提供了一种独立的通信方式——CommunicationPort。
+// 驱动// 创建通信端口FltCreateCommunicationPort(pFilter, &amp;pServerPort, &amp;oa, NULL, ConnectNotifyCb, DisconnectNotifyCb, MessageNotifyCb, 1);// 发送消息FltSendMessage(pFilter, &amp;pClientPort,inbuffer, inlength, outbuffer, outlength, &amp;liTimeout);// 接收消息回调NTSTATUS MessageNotifyCb(  PVOID PortCookie,  PVOID InputBuffer,  ULONG InputBufferLength,  PVOID OutputBuffer,  ULONG OutputBufferLength,  PULONG ReturnOutputBufferLength)&#123;...&#125;// 关闭客户端连接FltCloseClientPort(pFilter, &amp;pClientPort);// 关闭端口FltCloseCommunicationPort(pServerPort);// 应用态// 连接通信端口FilterConnectCommunicationPort(c_sPortName, 0, NULL, 0, NULL, &amp;m_pConnectionPort);// 接收消息FilterGetMessage(m_pConnectionPort,lpMessageBuffer, dwMessageBufferSize, NULL);// 回复消息FilterReplyMessage(m_pConnectionPort, lpReplyBuffer, dwReplyBufferSize);// 发送消息FilterSendMessage(m_pConnectionPort, inbuffer, inlength, outbuffer, outlength, &amp;outlength);
+
+
+本地过程调用（LPC, Local Procedure Call）
+
+LPC 是 Windows 中的一种轻量级的进程间通信机制，允许在同一台计算机上的不同进程之间进行高效的消息传递。它主要用于用户模式与内核模式之间的交互。
+由于LPC是Windows系统内部使用的一种通信机制，微软没有提供任何的公开文档，因此在实际使用中可能存在一定风险。
+但是，相比于其他方式而言，LPC可以从驱动连接应用层创建的通信端口，使用上更为灵活。
+文件系统筛选器驱动程序（微筛选器）可截获发往某个文件系统或其他文件系统筛选器驱动程序的请求。
+驱动入口DriverEntry与C&#x2F;C++语言中的main()函数非常相似，驱动程序必须指定入口点DriverEntry。
+DriverEntry要负责很多工作，例如创建设备对象、创建用于与驱动程序和核心函数（IRP Handler、卸载函数、回调例程等）进行通信的符号链接。
+DriverEntry首先使用到IoCreateDevice()或IoCreateDeviceSecure()的调用来创建设备对象，后者通常用于将安全描述符应用于设备对象，以限制对本地管理员和NT AUTHORITYSYSTEM的访问。
+接下来，DriveEntry将IoCreateSymbolicLink()与先前创建的设备对象一起使用，以建立符号链接，该链接将允许用户模式进程与驱动程序进行通信。
+IRP HandlerIRP（I&#x2F;O Request Packet）处理程序是 Windows 驱动开发中最核心的组件之一，它负责处理所有进出驱动的 I&#x2F;O 请求。
+在几乎所有情况下，对我们来说最重要的主要函数是IRP_MJ_DEVICE_CONTROL，该函数用于发送请求，以从用户模式执行特定的内部函数。这些请求中包括一个IO控制代码，该代码负责通知驱动程序具体的操作，还包含一个向驱动程序发送数据和从驱动程序接收数据的缓冲区。
+列题2025-H&amp;NCTF-HNDRIVER先运行程序得到
+
+题⽬提供了个类似Base64的东西
+我们将exe文件反编译分析一下
+
+这里是将 Windows 用户层应用程序，用于与内核驱动程序进行通信，我们重点看 if 判断的那个函数，点进去一路追到函数sub_1400030F0
+
+这里看到函数FilterConnectCommunicationPort
+这个函数我在前置知识有说，是用来连接通信端口
+该函数具体参数如下
+FilterConnectCommunicationPort(  _In_ PCWSTR PortName,                 // 端口名称  _In_ ULONG Options,                   // 连接选项  _In_opt_ PVOID ConnectionContext,     // 连接上下文数据  _In_ ULONG SizeOfContext,             // 上下文数据大小  _In_opt_ PSECURITY_ATTRIBUTES SecurityAttributes, // 安全描述符  _Out_opt_ PPORT_MESSAGE *ConnectionCookie // 连接令牌（可选）);
+
+使用 FilterConnectCommunicationPort 函数尝试连接到名为 \HNCTFNamedPipe 的内核通信端口，然后传了上下文数据进去（也就是用户输入）
+个程序只是把用户输整个程序只是把用户输入传给了驱动
+然后我们分析sys驱动文件，先查看函数DriverEntry
+
+可以查看一下各个函数，里面什么没有加密部分，查看函数名那一栏
+发现了一个无xref的构造函数入传
+这个函数有个很明显的部分
+
+PostWriteOperation回调函数：
+是 Windows 文件系统微筛选器驱动（Minifilter）中的一种后置操作回调函数，用于在文件写入操作完成后执行自定义逻辑。
+
+FltGetStreamHandleContext函数是用来****获取上下文
+​    
+其中**v7 &#x3D; sub_1400010C0(Pool, v19, &amp;P, &amp;v23, v29);**是一个接受自定义base64表的base64编码函数，base64表v29由上文的sub_140001894(v29);生成，查看这个函数
+​    
+逐步分析各个函数
+​    
+​    
+发现加密逻辑：
+先是将给出的数据进行一个异或，然后将异或后的数据进行打乱交换得到一个64字节的数据(+6K8hvNwEoMeDjXQUSR3q0dZYupgA17FrT94OsByWzk2CfLc&#x2F;GtJVIPbaxnlmHi5)，结合之前程序里面的字符串
+然后我们接着看sub_1400010C0函数
+​    
+很明显的base64的逻辑 得到flag：H&amp;NCTF{3z_M1n1f1173r_C0mmun1c4710n_b9c1daa9-a2b3-491f975b-de44e76e0a99}
 ]]></content>
       <categories>
         <category>Windows逆向</category>
