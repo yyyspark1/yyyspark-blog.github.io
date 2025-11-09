@@ -358,154 +358,6 @@ if (rand() == -1)
       </categories>
   </entry>
   <entry>
-    <title>SM4加密原理解析</title>
-    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
-    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
-SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
-基础概念概览
-
-
-项目
-描述
-
-
-
-算法类型
-对称加密算法
-
-
-分组长度
-128 比特（16 字节）
-
-
-密钥长度
-128 比特（16 字节）
-
-
-轮数
-通常为32 轮
-
-
-主要结构
-Feistel 类似结构（实际上是非经典 Feistel）
-
-
-用途
-国密标准中的数据加密，WAPI 无线局域网等
-
-
-整体流程概览
-密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
-分组加密过程：
-将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
-
-每一轮：
-
-使用轮密钥和前四个字进行非线性变换，生成一个新的字；
-滑动更新 4 个字；
-
-
-加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
-
-
-
-解密流程：与加密几乎一样，仅轮密钥逆序使用。
-
-SM4算法的完整过程轮密钥扩展
-明文加密
-密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
-密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
-第一步：密钥与系统参数的异或
-
-初始常量：FK[0..3]
-
-FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
-
-
-系统参数 CK[0..31]：是固定的 32 个 32bit 常数
-
-CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
-
-过程：
-k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
-
-第二步：获取子密钥：
-
-初始密钥与 FK 异或，得 K[0..3]
-
-每一轮：
-
-
-K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
-
-其中 T&#39;() 是不同的线性变换（密钥扩展用）：
-T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
-
-函数T
-函数 T 的定义T(x) = L(τ(x))
-
-它由两部分组成：
-
-τ(x)：非线性变换，也称 S-box 变换。
-
-L(x)：线性变换，用于实现扩散。
-
-
-τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
-
-将这个 32 位 word 拆成 4 个字节。
-
-每个字节经过 S-box 替换（查表替换）。
-
-将替换后的 4 个字节重新组合成一个 32 位 word。
-
-
-L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
-L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
-
-明文加密处的线性变换 L：
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
-明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
-
-PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
-ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
-
-整体结构
-明文处理大致分解为3步：
-
-将128bit的明文分成4个32bit的字X1,X2,X3,X4。
-
-将上述得到的字进行32轮的轮操作。
-
-最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
-
-
-轮操作
-加密总体流程图
-明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
-
-
-将后三个4字节的明文与轮密钥进行异或，得到A
-
-将32 位 word 的 A 拆成 4 个字节进行S-box 替换
-
-L(x) — 线性扩散变换
-
-
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-最后将首位4字节数据和C的输出进行异或
-X[i+4] = X[i] ^ C
-
-整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>Ptrace的简单实现(出题小计)</title>
     <url>/2025/06/10/Ptrace%E7%9A%84%E7%AE%80%E5%8D%95%E5%AE%9E%E7%8E%B0(%E5%87%BA%E9%A2%98%E5%B0%8F%E8%AE%A1)/</url>
     <content><![CDATA[Ptrace的简单实现(出题小计)参考文章：
@@ -763,6 +615,154 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
 运行截图
 ​    
 最终flag：flag{c0905a8ca94b41ec44bc02d3c623f96e}
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>SM4加密原理解析</title>
+    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
+    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
+SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
+基础概念概览
+
+
+项目
+描述
+
+
+
+算法类型
+对称加密算法
+
+
+分组长度
+128 比特（16 字节）
+
+
+密钥长度
+128 比特（16 字节）
+
+
+轮数
+通常为32 轮
+
+
+主要结构
+Feistel 类似结构（实际上是非经典 Feistel）
+
+
+用途
+国密标准中的数据加密，WAPI 无线局域网等
+
+
+整体流程概览
+密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
+分组加密过程：
+将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
+
+每一轮：
+
+使用轮密钥和前四个字进行非线性变换，生成一个新的字；
+滑动更新 4 个字；
+
+
+加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
+
+
+
+解密流程：与加密几乎一样，仅轮密钥逆序使用。
+
+SM4算法的完整过程轮密钥扩展
+明文加密
+密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
+密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
+第一步：密钥与系统参数的异或
+
+初始常量：FK[0..3]
+
+FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
+
+
+系统参数 CK[0..31]：是固定的 32 个 32bit 常数
+
+CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
+
+过程：
+k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
+
+第二步：获取子密钥：
+
+初始密钥与 FK 异或，得 K[0..3]
+
+每一轮：
+
+
+K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
+
+其中 T&#39;() 是不同的线性变换（密钥扩展用）：
+T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
+
+函数T
+函数 T 的定义T(x) = L(τ(x))
+
+它由两部分组成：
+
+τ(x)：非线性变换，也称 S-box 变换。
+
+L(x)：线性变换，用于实现扩散。
+
+
+τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
+
+将这个 32 位 word 拆成 4 个字节。
+
+每个字节经过 S-box 替换（查表替换）。
+
+将替换后的 4 个字节重新组合成一个 32 位 word。
+
+
+L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
+L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
+
+明文加密处的线性变换 L：
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
+明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
+
+PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
+ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
+
+整体结构
+明文处理大致分解为3步：
+
+将128bit的明文分成4个32bit的字X1,X2,X3,X4。
+
+将上述得到的字进行32轮的轮操作。
+
+最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
+
+
+轮操作
+加密总体流程图
+明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
+
+
+将后三个4字节的明文与轮密钥进行异或，得到A
+
+将32 位 word 的 A 拆成 4 个字节进行S-box 替换
+
+L(x) — 线性扩散变换
+
+
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+最后将首位4字节数据和C的输出进行异或
+X[i+4] = X[i] ^ C
+
+整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
 ]]></content>
       <categories>
         <category>Windows逆向</category>
@@ -1299,6 +1299,11 @@ mov rax, 23h ; syscall 35 nanosleep  push 989680h ; 10 毫秒  push 0  mov rdi, 
 
 对已运行的进程进行绑定：
 # 查找进程IDps aux | grep FileName# 绑定到 CPU 0taskset -cp 0 &lt;进程ID&gt;
+
+Windows 使用 start 命令 &#x2F;affinity 参数
+# 绑定到 CPU 0start /affinity 1 python solve.py# 绑定到 CPU 1  start /affinity 2 python solve.py# 绑定到 CPU 2start /affinity 4 python solve.py# 绑定到 CPU 3start /affinity 8 python solve.py# 绑定到 CPU 0 和 1start /affinity 3 python solve.py
+
+
 
 优化但即使是仅经过了前两步的‘降噪’操作，运行时仍然有很大的出错概率
 我一开始将‘睡眠’时间加到50ms乃至100ms，但仍是无法得到正确的flag，单纯的’睡眠‘无法得到准确的运行时间，还会大幅提高爆破时间
