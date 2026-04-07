@@ -1,120 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
-    <title>Flutter与so文件动调</title>
-    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
-    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
-Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
-工具准备blutter 环境配置
-前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
-
-libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
-
-flutter_assets/：存放资源文件（图片、字体、配置文件等）。
-
-isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
-
-libflutter.so（Android）：Flutter 引擎库。
-
-
-恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
-
-然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
-python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
-
-以这道题目为例
-python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
-后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
-要注意一下so文件架构是否支持
-然后你会得到
-
-在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
-开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
-具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
-在 IDA 菜单栏点击 File → Load file → Parse C header
-
-选择 ida_script/ida_dart_struct.h
-
-勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
-
-
-3. 运行符号恢复脚本
-在 IDA 菜单栏点击 File → Script file
-
-选择 ida_script/addNames.py
-
-等待脚本执行完成
-
-
-完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
-SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
-//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
-
-当然你也可以通过指令进行h重命名
-adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
-
-步骤二：端口转发默认启动端口为23946。
-另开一个cmd执行如下指令：
-adb forward tcp:23946 tcp:23946
-
-第一个端口对应电脑端，第二个端口对应手机端。
-执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
-步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
-adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
-
-步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
-在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
-
-在菜单栏的Debugger -&gt; Process options中设置主机和端口
-
-默认端口127.0.0.1
-在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
-
-需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
-android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
-
-果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
-在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
-
-为什么要将两个属性设置为True呢？当android:extractNativeLibs=&quot;true&quot;时安装 APK 时系统会把里面的 .so 解压到磁盘，例如：
-/data/app/com.xxx.xxx-xxxx/lib/arm64/libtarget.so
-
-
-进程加载时，linker 会从这个路径用 mmap 映射到内存。
-因为有实际的文件路径，IDA 动态调试时 attach 到进程，就能看到这个映射关系（maps 里会有一行带 libtarget.so 的路径）。
-这样 IDA 就可以直接自动关联你的 .so 文件，地址对齐也正确。
-
-当android:extractNativeLibs=&quot;false&quot;时
-这种情况下，APK 安装后不会把 .so 文件解压出来，而是 直接在 APK 压缩包里。
-当程序运行时，linker 会用一种特殊的方式：
-
-打开 base.apk
-定位 zip 里的 .so
-mmap 那段压缩包里的数据
-然后根据 ELF 头信息建立 soinfo 结构，把段映射到内存里
-
-
-所以内存里依然有 ELF 格式的 .so，但是磁盘上没有独立文件，/proc/&lt;pid&gt;/maps 里只会显示类似：
-
-
-/data/app/com.xxx.xxx-xxxx/base.apk!lib/arm64/libtarget.so
-
-
-因为没有真实文件，IDA attach 的时候就没法直接知道应该如何和你本地的 libtarget.so 对齐。
-
-android:debuggable=&quot;true&quot; 这个属性呢？这个属性和前面 extractNativeLibs 不一样，它完全是 跟调试器 attach 权限相关的。
-
-它是 AndroidManifest.xml 里的 application 节点属性。
-
-决定了这个应用能不能被外部调试器（如 IDA、gdb、Android Studio Debugger）attach。
-
-
-]]></content>
-      <categories>
-        <category>Android逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -355,6 +241,120 @@ if (rand() == -1)
 ]]></content>
       <categories>
         <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>Flutter与so文件动调</title>
+    <url>/2025/07/24/Flutter%E4%B8%8Eso%E6%96%87%E4%BB%B6%E5%8A%A8%E8%B0%83/</url>
+    <content><![CDATA[Flutter与so文件动调这是2024-CtfNewStar的Week5 Ohn_flutter!!!一个Flutter的安卓题目，这里只讲如何恢复符号表和so文件动调，具体WP请看CtfNewStar
+Flutter是谷歌的移动UI框架，Flutter 使用编译型语言 Dart 开发，代码会被编译为原生机器码（而非通过 JavaScript 桥接），运行速度接近原生应用。
+工具准备blutter 环境配置
+前置知识Flutter 应用的结构Flutter 应用的核心文件通常包括：
+
+libapp.so（Android）或 App.framework（iOS）：包含 Dart 编译后的原生代码。
+
+flutter_assets/：存放资源文件（图片、字体、配置文件等）。
+
+isolate_snapshot_data 和 vm_snapshot_data：Dart 虚拟机的快照数据（用于启动应用）。
+
+libflutter.so（Android）：Flutter 引擎库。
+
+
+恢复符号表配置好blutter环境以后，打开x64 Native Tools Command Prompt(这是visual studio2022 自带的一个终端，它可以在Visual Studio文件夹中找到)
+
+然后运行blutter.py并提供libapp.so和libflutter.so的文件夹路径以及输出文件夹路径
+python .\blutter.py ..\chall\lib\arm64-v8a\ .\output
+
+以这道题目为例
+python blutter.py C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a C:\Users\LENOVO\Desktop\app-release\lib\arm64-v8a\output
+后面的输出路径如果没有在给出的位置找到相关文件夹的话会自动生成
+要注意一下so文件架构是否支持
+然后你会得到
+
+在”asm\ohn_flutter”目录下，把这个文件夹在vscode里面打开，我们可以看到汇编形式的源代码，可以尝试用关键的函数地址搜索，找到程序的主逻辑处。
+开始恢复符号表blutter 反编译得到 asm 文件夹和 ida_script 文件夹，ida_script 在 IDA 里先加载 ida_dart_struct.h 头文件再运行 addNames.py 脚本可得到大部分符号
+具体步骤1. 加载二进制文件到 IDA2. 导入 Dart 结构头文件
+在 IDA 菜单栏点击 File → Load file → Parse C header
+
+选择 ida_script/ida_dart_struct.h
+
+勾选 Add to imported types，点击 Parse → 成功后会在 Structures 窗口看到 Dart 相关结构（如 Dart_Isolate、Dart_Code 等）
+
+
+3. 运行符号恢复脚本
+在 IDA 菜单栏点击 File → Script file
+
+选择 ida_script/addNames.py
+
+等待脚本执行完成
+
+
+完成后仍然有大量混淆用IDA自带的去goomba插件(右键-De-obfuscate)或D810都可以去除部分混淆
+SO文件调试步骤一：将 android_server 文件 push 到手机中并执行复制IDA目录下的\dbgsrv目录下的android_server和android_server64到真机中并执行：
+//复制到真机中  adb push android_server /data/local/tmp  adb push android_server64 /data/local/tmp  //修改应用权限使其可执行  Cd /data/local/tmp  chmod 777 android_server android_server64  //执行所需要的版本  ./android_server64
+
+当然你也可以通过指令进行h重命名
+adb shell &quot;mv /data/local/tmp/android_server32 /data/local/tmp/新文件名&quot;
+
+步骤二：端口转发默认启动端口为23946。
+另开一个cmd执行如下指令：
+adb forward tcp:23946 tcp:23946
+
+第一个端口对应电脑端，第二个端口对应手机端。
+执行后，将会通过电脑端的23946端口转发数据到手机端的23946端口。
+步骤三：启动要调试的应用程序你可以直接在手机进行启动，或者输入以下命令进行启动
+adb shell am start -D -n 包名/活动名  //例如  //adb shell am start -D -n com.example.ohn_flutter/.MainActivity
+
+步骤四：使用IDA附加进程用IDA打开想要调试的so库，调试器选择Remote ARM Linux/Android debugger。
+在菜单栏的Debugger -&gt; Debugger options中设置程序暂停的时机
+
+在菜单栏的Debugger -&gt; Process options中设置主机和端口
+
+默认端口127.0.0.1
+在菜单栏的Debugger -&gt; Attach to Process中选择要调试的进程进行附加
+
+需要注意的是，在安装 APK 时，检查对应 apk 的属性，需要满足以下两个属性均为 true，可以通过使用 apktool 解包后修改重新打包实现，也可以使用面具模块或 xposed 模块实现。
+android:debuggable=&quot;true&quot;  android:extractNativeLibs=&quot;true&quot;
+
+果不想这么复杂，直接把 so 复制到 /data/app/包名/lib 里面，就会优先加载这个目录里面的 so，或者直接在 IDA 中的 module 中选择 base.apk,然后定位到需要调试的地址，然后手动按 P 将其转为 code，然后就可以下断点调试。
+在 IDA 中直接 F9 运行，此时 APP 将会运行起来，IDA 将会弹出下列界面，点击 same 就可以了。
+
+为什么要将两个属性设置为True呢？当android:extractNativeLibs=&quot;true&quot;时安装 APK 时系统会把里面的 .so 解压到磁盘，例如：
+/data/app/com.xxx.xxx-xxxx/lib/arm64/libtarget.so
+
+
+进程加载时，linker 会从这个路径用 mmap 映射到内存。
+因为有实际的文件路径，IDA 动态调试时 attach 到进程，就能看到这个映射关系（maps 里会有一行带 libtarget.so 的路径）。
+这样 IDA 就可以直接自动关联你的 .so 文件，地址对齐也正确。
+
+当android:extractNativeLibs=&quot;false&quot;时
+这种情况下，APK 安装后不会把 .so 文件解压出来，而是 直接在 APK 压缩包里。
+当程序运行时，linker 会用一种特殊的方式：
+
+打开 base.apk
+定位 zip 里的 .so
+mmap 那段压缩包里的数据
+然后根据 ELF 头信息建立 soinfo 结构，把段映射到内存里
+
+
+所以内存里依然有 ELF 格式的 .so，但是磁盘上没有独立文件，/proc/&lt;pid&gt;/maps 里只会显示类似：
+
+
+/data/app/com.xxx.xxx-xxxx/base.apk!lib/arm64/libtarget.so
+
+
+因为没有真实文件，IDA attach 的时候就没法直接知道应该如何和你本地的 libtarget.so 对齐。
+
+android:debuggable=&quot;true&quot; 这个属性呢？这个属性和前面 extractNativeLibs 不一样，它完全是 跟调试器 attach 权限相关的。
+
+它是 AndroidManifest.xml 里的 application 节点属性。
+
+决定了这个应用能不能被外部调试器（如 IDA、gdb、Android Studio Debugger）attach。
+
+
+]]></content>
+      <categories>
+        <category>Android逆向</category>
       </categories>
   </entry>
   <entry>
@@ -618,6 +618,127 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
 ]]></content>
       <categories>
         <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>安卓的基本结构</title>
+    <url>/2026/04/07/%E5%AE%89%E5%8D%93%E7%9A%84%E5%9F%BA%E6%9C%AC%E7%BB%93%E6%9E%84/</url>
+    <content><![CDATA[最近打算专攻Android逆向，在这里记录一下最开始的Android基础知识
+安卓的四大组件Activity、Service(服务)、BroadcastReceiver(广播接收器)、Content Provider(内容提供者)
+ActiviyActivity 是 Android 应用中负责用户界面和交互的核心组件。每个应用至少有一个 Activity，它通常作为应用的启动点，用于展示 UI 并处理用户输入。Activity 通过生命周期方法管理与用户的交互，并通过 Intent 在多个 Activity 之间进行跳转。 主要功能：
+
+负责用户界面的展示和用户的交互。
+每个应用至少有一个 Activity，通常应用的启动点就是一个 Activity。
+可以通过 Intent 在不同的 Activity 之间进行跳转。
+
+ServiceService 是一个在后台运行的应用组件，它不与用户直接交互，但可以在后台执行长时间的任务。比如，下载文件、播放音乐或进行网络请求等。Service 主要用于执行需要长时间运行的操作，或者即使用户切换到其他应用时，服务也能继续运行。
+主要功能：
+
+负责执行后台任务，通常不需要用户交互。
+可以在主线程之外执行长时间运行的操作，如下载文件、播放音乐。
+可以与其他组件（如 Activity）通信，或者通过广播来通知事件。
+
+BroadcastReceiverBroadcastReceiver 用于接收和处理广播消息。广播是 Android 系统中用于传递信息的机制，BroadcastReceiver 可以监听特定的广播事件并作出响应。例如，接收系统广播（如设备开机完成、Wi-Fi 状态变化等），或者应用发送的广播。可以用于不同页面间的通信!
+主要功能：
+
+接收系统或应用发送的广播消息。
+可以在不与用户交互的情况下执行操作，例如网络连接状态变化、系统启动等。
+广播可以是系统广播，也可以是应用内部的广播。
+
+Content ProviderContentProvider 用于跨应用共享数据。它提供了一个统一的接口，使得一个应用可以访问另一个应用的数据。ContentProvider 可以封装数据库操作、文件操作或者其他数据存储方式，并通过 ContentResolver 提供访问权限。
+主要功能：
+
+提供一个访问数据的接口，可以是本地数据库、共享文件、或是其他数据存储方式。
+使得应用能够访问其他应用的数据，同时对外暴露统一的 API。
+通过 ContentResolver 进行访问，允许应用进行 CRUD（增、删、改、查）操作。
+
+Intent 机制与组件间通信Intent 直译”意图”，是 Android 中组件之间通信的信使 作用：作用：在组件之间（Activity、Service、Broadcast）传递消息、跳转、启动、通信 Activity  ──Intent──→  Activity   （页面跳转） Activity  ──Intent──→  Service    （启动服务） Activity  ──Intent──→  Broadcast  （发送广播）
+Intent 分为两种主要类型：显式和隐式
+显式 Intent显式 Intent 明确指定目标组件的类名，通常用于同一应用内的组件交互。例如，启动一个特定的 Activity：
+Intent intent = new Intent(this, TargetActivity.class);startActivity(intent);// 跨应用跳转（知道对方包名和类名）Intent intent = new Intent();intent.setClassName(    &quot;com.tlamb96.kgbmessenger&quot;,          // 目标包名    &quot;com.tlamb96.kgbmessenger.LoginActivity&quot; // 目标类名);startActivity(intent);// 使用 ComponentNameComponentName component = new ComponentName(    &quot;com.example.app&quot;,    &quot;com.example.app.MainActivity&quot;);Intent intent = new Intent();intent.setComponent(component);startActivity(intent);
+
+显式 Intent 适用于明确知道目标组件的情况，效率高且意图清晰。
+隐式 Intent隐式 Intent 不指定具体的目标组件，而是描述一个通用的操作（如“打开网页”或“分享文本”），由系统根据 Intent 的内容匹配适合的组件。其他应用也可以响应隐式 Intent。例如：
+// 打开网页Intent intent = new Intent(Intent.ACTION_VIEW);intent.setData(Uri.parse(&quot;https://www.example.com&quot;));startActivity(intent);
+
+匹配流程：  隐式 Intent 发出 │ ▼ 系统扫描所有已安装应用的 AndroidManifest.xml │ ▼ 找到所有声明了匹配 intent-filter 的组件 │ ├── 只有一个匹配 → 直接启动 ├── 多个匹配    → 弹出选择器让用户选 └── 没有匹配    → 抛出 ActivityNotFoundException
+APK核心文件结构AndroidManifest.xmlAndroidManifest.xml 是每个Android应用不可或缺的配置文件，它包含了应用的关键信息。我们可以把它看作是应用的“蓝图”或“说明书”，它向系统声明了应用的基本属性、组件以及权限等。
+AndroidManifest.xml 详细讲解  每个 Android 应用必须有且仅有一个 AndroidManifest.xml位于项目根目录：app&#x2F;src&#x2F;main&#x2F;AndroidManifest.xml
+  作用：告诉 Android 系统”这个应用是什么、能做什么、需要什么”
+完整结构总览&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&lt;manifest&gt;                          &lt;!-- 根元素 --&gt;    &lt;uses-permission/&gt;              &lt;!-- 权限申请 --&gt;    &lt;permission/&gt;                   &lt;!-- 自定义权限 --&gt;    &lt;uses-feature/&gt;                 &lt;!-- 硬件/软件特性要求 --&gt;    &lt;uses-sdk/&gt;                     &lt;!-- SDK版本要求 --&gt;    &lt;application&gt;                   &lt;!-- 应用全局配置 --&gt;        &lt;activity&gt;                  &lt;!-- 界面组件 --&gt;            &lt;intent-filter/&gt;            &lt;meta-data/&gt;        &lt;/activity&gt;        &lt;service&gt;                   &lt;!-- 后台服务 --&gt;            &lt;intent-filter/&gt;        &lt;/service&gt;        &lt;receiver&gt;                  &lt;!-- 广播接收器 --&gt;            &lt;intent-filter/&gt;        &lt;/receiver&gt;        &lt;provider&gt;                  &lt;!-- 内容提供者 --&gt;            &lt;grant-uri-permission/&gt;        &lt;/provider&gt;        &lt;meta-data/&gt;                &lt;!-- 全局元数据 --&gt;    &lt;/application&gt;&lt;/manifest&gt;
+
+实例讲解//XML 声明&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;   //根元素，每个 APK 有且仅有一个，xmlns:android → 引入 Android 命名空间//所有 android:xxx 属性都依赖这个声明，没有它，所有属性都会报错&lt;manifest xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;//内部版本号    android:versionCode=&quot;1&quot;//对外展示的版本号    android:versionName=&quot;1.0&quot;//应用的唯一标识符（包名）    package=&quot;com.tlamb96.spetsnazmessenger&quot;&gt;//SDK版本要求    &lt;uses-sdk//最低支持的 SDK 版本        android:minSdkVersion=&quot;17&quot;//目标 SDK 版本        android:targetSdkVersion=&quot;25&quot;/&gt;//应用全局配置    &lt;application//全局UI主题        android:theme=&quot;@style/AppTheme&quot;//应用名称，引用 res/values/strings.xml 中的字符串        android:label=&quot;@string/app_name&quot;//应用图标        android:icon=&quot;@mipmap/ic_kgb_launcher_icon&quot;//是否允许通过 ADB 备份应用数据        android:allowBackup=&quot;true&quot;//RTL = Right To Left（从右到左），支持阿拉伯语、希伯来语、波斯语等从右到左排列的语言        android:supportsRtl=&quot;true&quot;//圆形图标        android:roundIcon=&quot;@mipmap/ic_kgb_launcher_icon&quot;&gt;//声明第一个 Activity：主界面，android:name → 完整类路径        &lt;activity android:name=&quot;com.tlamb96.kgbmessenger.MainActivity&quot;&gt;//表示该Activity响应的Intent            &lt;intent-filter&gt;//启动应用时的主动作，标记此 Activity 为应用主入口，整个应用有且仅有一个 MAIN + LAUNCHER 组合，没有此组合则应用不会出现在桌面                &lt;action android:name=&quot;android.intent.action.MAIN&quot;/&gt;//标记为Launcher，标记此 Activity 在桌面启动器中显示图标与 action.MAIN 配合，构成完整的桌面入口声明，用户点击桌面图标                &lt;category android:name=&quot;android.intent.category.LAUNCHER&quot;/&gt;            &lt;/intent-filter&gt;        &lt;/activity&gt;//第二个 Activity，极简声明，没有任何附加属性        &lt;activity android:name=&quot;com.tlamb96.kgbmessenger.MessengerActivity&quot;/&gt;//第三个 Activity        &lt;activity android:name=&quot;com.tlamb96.kgbmessenger.LoginActivity&quot;/&gt;//全局元数据，用于存储键值对配置信息，可被代码通过 PackageManager 读取        &lt;meta-data//配置项名称：支持库版本            android:name=&quot;android.support.VERSION&quot;//配置的值：版本号 25.4.0            android:value=&quot;25.4.0&quot;/&gt;    &lt;/application&gt;&lt;/manifest&gt;
+
+classes.dexclasses.dex 文件包含了应用程序的可执行代码。它是应用的Dalvik字节码文件，也是Android应用在运行时通过 Dalvik虚拟机 或 ART（Android Runtime） 解释执行的核心文件。每个Android应用中，所有的Java源代码都经过编译后形成一个或多个DEX（Dalvik Executable）文件，这些文件包含了应用的业务逻辑和代码实现。 Android 5.0+ 用 ART 取代 Dalvik，但字节码格式没变，仍然叫 Dalvik 字节码 &#x2F; DEX 字节码。
+resources.arscresources.arsc 文件包含了应用程序的所有编译后的资源映射信息。这个文件并不存储实际的资源内容（如图片或字符串），而是存储资源与资源ID的映射关系。例如，它会保存应用中的字符串、颜色、尺寸、样式等信息以及这些资源的ID。通过这个文件，Android系统能够在应用运行时快速访问和加载所需的资源。
+使用jadx可以看见:
+assetsassets 目录包含了应用程序的原始资源文件，这些资源不经过编译，直接以原始形式存储。通常，开发者可以在该目录中存放字体文件、音频文件、HTML文件等，应用在运行时通过API来读取这些资源。例如，游戏可能会将所有的地图文件或纹理图像存放在此目录中。通过AssetManager API，应用可以访问这些文件。
+liblib 目录包含了本地库文件，通常是通过 JNI（Java Native Interface） 与C&#x2F;C++编写的本地代码。这些库文件可以针对不同的硬件架构（如arm、x86等）进行编译，因此lib/目录下通常会为每个架构创建相应的子目录。这个目录中存放的本地库可以通过Java代码调用JNI接口实现与系统底层的交互。  
+resres 目录包含了Android应用所需的所有资源文件。与 assets&#x2F; 目录不同，res&#x2F; 目录中的资源文件是经过编译的，按照不同类型的资源进行组织，例如：
+
+drawable&#x2F;：存放图像资源（如PNG、JPEG等格式的图片）。
+
+layout&#x2F;：存放XML格式的布局文件，定义界面的结构。
+
+values&#x2F;
+：存放各种配置文件，定义应用的常量、颜色、字符串等资源。例如：
+
+strings.xml：存储应用的文本字符串。
+colors.xml：存储应用使用的颜色资源。
+styles.xml：存储样式资源。 
+
+
+
+在values/目录下，除了strings.xml、colors.xml等常见资源文件，还会有像dimens.xml（尺寸定义文件）和attrs.xml（自定义属性）等资源文件。
+META-INFMETA-INF 目录与Java的JAR文件类似，用于存放APK文件的元数据，如签名文件、校验信息等。
+表格总结
+
+
+文件名
+核心作用
+
+
+
+AndroidManifest.xml
+应用核心配置文件，向系统声明基本属性、组件、权限等关键信息。
+
+
+classes.dex
+应用可执行核心文件，存储Java&#x2F;Kotlin编译后的字节码，供Dalvik&#x2F;ART虚拟机执行。
+
+
+resources.arsc
+存储编译后资源与资源ID的映射关系，帮助系统快速加载所需资源。
+
+
+assets
+存放未编译的原始资源，可通过AssetManager API读取（如字体、音频等）。
+
+
+lib
+存放JNI相关的C&#x2F;C++本地库文件，按硬件架构分类，实现底层交互。
+
+
+res
+存放经编译的各类资源，按类型组织，包含strings、colors等资源文件。
+
+
+META-INF
+存放APK的元数据，包括签名文件、校验信息等。
+
+
+Android 签名机制 v1、v2、v3、v4参考文章：Android 签名机制 v1、v2、v3，Android 签名机制 v4
+Gradle 构建系统Gradle 是 Android 开发的官方构建工具，负责把你的源代码、资源文件、依赖库打包成 APK。
+构建脚本文件
+MyApp/├── build.gradle          ← 项目级（根目录）├── settings.gradle       ← 项目结构声明└── app/    └── build.gradle      ← 模块级（最重要）
+
+模块级 build.gradle 结构
+android &#123;    compileSdk 34              // 编译用的 SDK 版本    defaultConfig &#123;        applicationId &quot;com.example.app&quot;   // 包名（逆向时很关键）        minSdk 21        targetSdk 34        versionCode 1          // 内部版本号        versionName &quot;1.0&quot;      // 显示版本号    &#125;    buildTypes &#123;        release &#123;            minifyEnabled true          // 是否开启混淆/压缩            proguardFiles ...           // 混淆规则文件        &#125;        debug &#123;            debuggable true             // 调试模式        &#125;    &#125;&#125;dependencies &#123;    implementation &#x27;com.squareup.okhttp3:okhttp:4.9.0&#x27;  // 第三方库&#125;
+
+参考文章：(52 条消息) Android基础知识——四大组件 - 知乎 [原创]Android逆向0基础入门-APK全面解析,动调与脱壳-Android安全-看雪安全社区｜专业技术交流与安全研究论坛
+]]></content>
+      <categories>
+        <category>Android逆向</category>
       </categories>
   </entry>
   <entry>
@@ -888,6 +1009,276 @@ FltGetStreamHandleContext函数是用来****获取上下文
       </categories>
   </entry>
   <entry>
+    <title>时序侧信道攻击</title>
+    <url>/2025/11/07/%E6%97%B6%E5%BA%8F%E4%BE%A7%E4%BF%A1%E9%81%93%E6%94%BB%E5%87%BB/</url>
+    <content><![CDATA[看到nk战队的wp上HyperJump题用的时序侧信道攻击，参照nk战队的wp进行时序攻击的学习和思考
+时序测信道攻击的原理和防范措施核心思想：通过测量一个系统执行操作所花费的时间，系统的执行时间与处理的数据内容、内部操作序列密切相关，攻击者通过精准测量执行时间并分析差异来推断出系统内部的秘密信息（如加密密钥、密码等）。
+防范措施：既然攻击者利用的是操作时间差，那么我们就能知道防御的核心原则是——消除执行时间与秘密数据之间的任何依赖关系。
+
+恒定时间编程
+添加随机延迟
+算法级屏蔽 操作执行前，先用一个随机值对秘密数据进行盲化。操作完成后，再去除盲化因子。这样，算法核心处理的就是随机化的数据，其执行时间不再与原始秘密相关
+
+以上三种措施都能有效防范该攻击
+对wp中的exp分析import subprocess  #用于启动外部程序并与其交互import timeit      #用于精确测量代码执行时间import string      #提供字符串常量（如字母、数字）  def spawn(cmd: str, _stdin: bytes) -&gt; float:      f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)    cmd = &quot;./hyperjump&quot;  keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;  print(f&quot;[-] Finding password&quot;)  p = &quot;flag&#123;&quot;  for j inrange(24 - len(p)):      sum_of_elapsed = &#123;&#125;      for k in keys:          sum_of_elapsed[k] = 0          payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;          sum_of_elapsed[k] += spawn(cmd, payload.encode())        c = max(sum_of_elapsed, key=sum_of_elapsed.get)      p += c      print(f&quot;[+] Done: Assuming p[&#123;j&#125;] to be &#123;c&#125;&quot;)    iflen(p) == 0:      print(&quot;[-] Attack failed.&quot;)    print(f&quot;[+] Done! Password is \n&#123;p&#125;&quot;)  print(p)
+
+整体就是检测程序运行的时间和爆破
+检测程序运行的时间函数分析def spawn(cmd: str, _stdin: bytes) -&gt; float:  指定运行程序路径和要输入给目标程序的数据（必须是字节类型，因为程序输入需要二进制数据），然后返回一个浮点数的值    f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)  
+
+subprocess.Popen：启动外部程序
+subprocess是 Python 用于调用外部程序的库，Popen是其中最核心的类，用于创建一个新的进程来运行目标程序。这里的参数：
+
+cmd：要运行的程序路径（比如./hyperjump）。
+stdin=subprocess.PIPE：表示 “允许向这个程序的标准输入（stdin）发送数据”（可以理解为给程序 “喂” 输入）。
+stdout=subprocess.DEVNULL：表示 “忽略程序的标准输出（stdout）”（我们只关心程序运行时间，不关心它输出了什么，所以用DEVNULL丢弃输出）。
+
+执行subprocess.Popen(...)后，目标程序会被启动，但此时它会等待输入（因为我们指定了stdin=PIPE）。
+.communicate(_stdin)：向程序输入数据并等待结束
+communicate是Popen对象的方法，作用是：
+
+向程序的标准输入发送_stdin数据。
+等待程序处理完数据并退出（即等待进程结束）。
+
+所以，subprocess.Popen(...).communicate(_stdin)的完整流程是：启动目标程序 → 发送_stdin数据给它 → 等待程序处理完毕并退出。而lambda: ...则将这个流程包装成了一个可调用的函数f（调用f()就会执行上述流程）。
+ 测量时间：return timeit.timeit(f, number=1)
+timeit.timeit是 Python 用于精确测量代码执行时间的工具，这里的作用是测量f()函数的执行时间：
+
+第一个参数f：要测量的函数
+第二个参数number=1：表示只执行f()一次
+返回值：f()执行一次所花费的总时间（单位是秒）。
+用timeit而不是简单的time.time()计时，是因为timeit会自动屏蔽一些系统干扰（比如其他进程的短暂占用），测量更精确，适合这种对时间差异敏感的侧信道攻击。
+
+爆破部分keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;
+keys通过三部分拼接包含了可能候选字符的字符串：
+
+string.ascii_letters这是 Python 标准库string提供的常量，包含所有大小写英文字母，即：&#39;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&#39;
+
+string.digits同样是string库的常量，包含所有数字字符，即：&#39;0123456789&#39;
+
+&quot;_!&#125;&quot;这里没有直接用ASCll的可视化字符就是因为ASCII 表中的可视化字符（可打印字符）约有 95 个（从0x20空格到0x7E波浪号），但是其中有些字符比如#$%^&amp;*()等这些在ctf中基本不会出现，而由这三部分拼接的字符只有65个，可以显著缩短总耗时（如果题目有说特殊字符什么的再进行添加）
+
+
+然后进行循环爆破，通过创建字典sum_of_elapsed = &#123;&#125;手收集每个字符运行程序所用的时间，方便后面进行比对
+sum_of_elapsed[k] = 0  。。初始化字典payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;  //将该字符前面拼接完成了的字符串，后面拼接0sum_of_elapsed[k] += spawn(cmd, payload.encode()) //得到k字符的时间，以字典的形式
+
+ max()函数的基本用法
+Python 内置的max()函数用于找出可迭代对象中的最大值。其基本语法为：
+max(可迭代对象, key=函数)
+
+
+可迭代对象：这里是sum_of_elapsed（字典），迭代时默认取字典的键（即候选字符）。
+key&#x3D;函数：指定一个函数，用于计算每个元素的 “比较值”，max()会根据这个 “比较值” 来判断最大值。
+
+ key=sum_of_elapsed.get的作用是根据键获取对应的值
+
+当max()遍历字典的键（字符）时，key=sum_of_elapsed.get会告诉max()：不要直接比较键本身（字符），而是比较每个键对应的 值（时间）。
+
+c &#x3D; max(sum_of_elapsed, key&#x3D;sum_of_elapsed.get)取运行时间最大的字符，然后将其拼接在字符串p里面
+该题目采用的是逐字节对比，错误就直接退出，因此对的字符就接着进行下一轮比对，所以正确字符所用时间是大于错误字符的
+噪音噪音就是任何会干扰或污染你想要测量的那个纯净时序信号（也就是测量执行时间）的东西
+时序测信道攻击本就依靠比对时间的差异来推断出系统内部的秘密信息，因此需要极为准确的时间而很多因素都能影响测量时间（进程调度干扰，硬件资源竞争，指令执行波动，软件层面的额外操作，网络延迟波动，硬件环境变化），如果直接运行该脚本，这样得到运行时间必然会出现误差，从而导致得出的结果错误
+因此wp中做了’睡眠‘处理和cpu限制处理
+mov rax, 23h ; syscall 35 nanosleep  push 989680h ; 10 毫秒  push 0  mov rdi, rsp ; rsp 指向时间结构体  xor rsi, rsi  syscall  pop rax  pop rax  ret
+
+前者可以使输入对的字符总是比错的字符多执行 10 毫秒，后者可以减少时序测量的噪声在多核CPU环境中：
+
+进程可能在多个CPU核心之间迁移
+
+不同核心的负载、频率可能不同
+
+核心间的缓存不一致会导致时间波动
+
+
+缓存效应
+
+第一次运行：指令和数据需要加载到缓存
+
+后续运行：如果调度到不同核心，缓存失效
+
+这会导致时间差异，干扰真正的时序信号
+
+
+同时现代CPU有动态频率调整：
+
+轻负载时降频节能
+
+重负载时升频
+
+不同核心可能运行在不同频率
+
+
+限制CPU为1的效果攻击前（不限制CPU）：
+字符 &#x27;a&#x27;: 20.1ms, 19.8ms, 25.3ms, 20.2ms  ← 波动很大字符 &#x27;b&#x27;: 19.9ms, 20.1ms, 19.7ms, 24.8ms  ← 难以区分
+
+攻击后（限制CPU为1）：
+字符 &#x27;a&#x27;: 30.1ms, 30.2ms, 30.1ms, 30.3ms  ← 稳定字符 &#x27;b&#x27;: 20.1ms, 20.2ms, 20.1ms, 20.3ms  ← 稳定
+正确字符明显多10ms！
+限制代码Linux运行程序时绑定到特定CPU核心：
+# 绑定到 CPU 0taskset -c 0 python3 solve.py# 或者绑定到 CPU 0 运行二进制程序taskset -c 0 ./hyperjump# 同时限制两个程序taskset -c 0 python3 solve.py# 在另一个终端taskset -c 0 ./hyperjump
+
+对已运行的进程进行绑定：
+# 查找进程IDps aux | grep FileName# 绑定到 CPU 0taskset -cp 0 &lt;进程ID&gt;
+
+Windows 使用 start 命令 &#x2F;affinity 参数
+# 绑定到 CPU 0start /affinity 1 python solve.py# 绑定到 CPU 1  start /affinity 2 python solve.py# 绑定到 CPU 2start /affinity 4 python solve.py# 绑定到 CPU 3start /affinity 8 python solve.py# 绑定到 CPU 0 和 1start /affinity 3 python solve.py
+
+
+
+优化但即使是仅经过了前两步的‘降噪’操作，运行时仍然有很大的出错概率
+我一开始将‘睡眠’时间加到50ms乃至100ms，但仍是无法得到正确的flag，单纯的’睡眠‘无法得到准确的运行时间，还会大幅提高爆破时间
+因此我在spawn 函数里增加了循环测量：
+def spawn(cmd: str, _stdin: bytes) -&gt; float:    # 测量3次取最小值（减少异常值影响）    measurements = []    for _ in range(3):        f = lambda: subprocess.Popen(            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL        ).communicate(_stdin)        measurements.append(timeit.timeit(f, number=1))    return min(measurements)  # 取最小值而不是平均值
+
+通过多次测量取最小值，取最小值能过滤掉因系统中断导致的异常大值
+测量结果: [30.1, 29.8, 30.3] → 取29.8测量结果: [20.1, 25.3, 20.2] → 取20.1  # 异常值25.3被过滤
+差异: 29.8 - 20.1 &#x3D; 9.7ms (明显!)
+为什么取最小值而不是平均值？
+
+系统中断通常让时间变长而不是变短
+
+正确字符的最小值代表”无干扰”情况下的真实时间
+
+错误字符的最小值也代表其真实基准时间
+这三个降低测量时间的不稳定性方法使得我得到了绝大部分正确的flag，但是还有一个问题也就是最后一个字符错误
+
+
+最后一个误差来自结尾的字符也就是&#125;，这是因为程序逻辑的特殊性导致的，在最后一个字符运行完毕后输出结果后退出，而不管是正确还是错误的字符，它们都是相同的睡眠时间，正确字符对比结束后没有再多执行10ms的时间，时间差别太小，但是爆破花括号内的字符也够了，能得到flag
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+RC5 分组密钥算法 C语言实现
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
+
+每一轮：
+
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
+
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
+
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
+
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
+
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
+
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
+
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
+
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
+
+这里用两个“幻数”：
+
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
+
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
+
+在 C 语言里 uint32_t 类型是无符号32位整数。
+
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+
+
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
+
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
+
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
+
+数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
+
+为什么要转化为小端序呢？大端序不行嘛？
+vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
+示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
+
+
+这些值是某一密钥对应的扩展值，但看不到 key。
+
+但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
+
+
+魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
+示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
+
+其中
+seed = seed * 1103515245 + 12345;
+这一整行其实是一个经典的伪随机数算法：
+
+Linear Congruential Generator（线性同余生成器，LCG）
+
+其形式为：
+seed = (a * seed + c) % m
+
+
+S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
+
+但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
+
+有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
+
+
+魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
+示例代码：
+uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
+
+
+你需要在调试器里看到 data 具体内容，才能提取 key。
+有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
+
+魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
+void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
+
+
+相当于只保留了部分轮数，或者所有轮都展开成常量。
+
+没有 key 也没有 S[]，你只能通过解密路径还原明文。
+
+
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>L3HCTF2025</title>
     <url>/2025/07/15/L3HCTF2025/</url>
     <content><![CDATA[TemporalParadox拿到这道题目，我运行程序后发现报错
@@ -1057,276 +1448,6 @@ L3HCTF{ez_rust_reverse_lol}
 ]]></content>
       <categories>
         <category>各类比赛WP</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-RC5 分组密钥算法 C语言实现
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
-
-每一轮：
-
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
-
-
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
-
-数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
-
-为什么要转化为小端序呢？大端序不行嘛？
-vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
-RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
-示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
-
-
-这些值是某一密钥对应的扩展值，但看不到 key。
-
-但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
-
-
-魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
-示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
-
-其中
-seed = seed * 1103515245 + 12345;
-这一整行其实是一个经典的伪随机数算法：
-
-Linear Congruential Generator（线性同余生成器，LCG）
-
-其形式为：
-seed = (a * seed + c) % m
-
-
-S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
-
-但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
-
-有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
-
-
-魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
-示例代码：
-uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
-
-
-你需要在调试器里看到 data 具体内容，才能提取 key。
-有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
-
-魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
-void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
-
-
-相当于只保留了部分轮数，或者所有轮都展开成常量。
-
-没有 key 也没有 S[]，你只能通过解密路径还原明文。
-
-
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>时序侧信道攻击</title>
-    <url>/2025/11/07/%E6%97%B6%E5%BA%8F%E4%BE%A7%E4%BF%A1%E9%81%93%E6%94%BB%E5%87%BB/</url>
-    <content><![CDATA[看到nk战队的wp上HyperJump题用的时序侧信道攻击，参照nk战队的wp进行时序攻击的学习和思考
-时序测信道攻击的原理和防范措施核心思想：通过测量一个系统执行操作所花费的时间，系统的执行时间与处理的数据内容、内部操作序列密切相关，攻击者通过精准测量执行时间并分析差异来推断出系统内部的秘密信息（如加密密钥、密码等）。
-防范措施：既然攻击者利用的是操作时间差，那么我们就能知道防御的核心原则是——消除执行时间与秘密数据之间的任何依赖关系。
-
-恒定时间编程
-添加随机延迟
-算法级屏蔽 操作执行前，先用一个随机值对秘密数据进行盲化。操作完成后，再去除盲化因子。这样，算法核心处理的就是随机化的数据，其执行时间不再与原始秘密相关
-
-以上三种措施都能有效防范该攻击
-对wp中的exp分析import subprocess  #用于启动外部程序并与其交互import timeit      #用于精确测量代码执行时间import string      #提供字符串常量（如字母、数字）  def spawn(cmd: str, _stdin: bytes) -&gt; float:      f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)    cmd = &quot;./hyperjump&quot;  keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;  print(f&quot;[-] Finding password&quot;)  p = &quot;flag&#123;&quot;  for j inrange(24 - len(p)):      sum_of_elapsed = &#123;&#125;      for k in keys:          sum_of_elapsed[k] = 0          payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;          sum_of_elapsed[k] += spawn(cmd, payload.encode())        c = max(sum_of_elapsed, key=sum_of_elapsed.get)      p += c      print(f&quot;[+] Done: Assuming p[&#123;j&#125;] to be &#123;c&#125;&quot;)    iflen(p) == 0:      print(&quot;[-] Attack failed.&quot;)    print(f&quot;[+] Done! Password is \n&#123;p&#125;&quot;)  print(p)
-
-整体就是检测程序运行的时间和爆破
-检测程序运行的时间函数分析def spawn(cmd: str, _stdin: bytes) -&gt; float:  指定运行程序路径和要输入给目标程序的数据（必须是字节类型，因为程序输入需要二进制数据），然后返回一个浮点数的值    f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)  
-
-subprocess.Popen：启动外部程序
-subprocess是 Python 用于调用外部程序的库，Popen是其中最核心的类，用于创建一个新的进程来运行目标程序。这里的参数：
-
-cmd：要运行的程序路径（比如./hyperjump）。
-stdin=subprocess.PIPE：表示 “允许向这个程序的标准输入（stdin）发送数据”（可以理解为给程序 “喂” 输入）。
-stdout=subprocess.DEVNULL：表示 “忽略程序的标准输出（stdout）”（我们只关心程序运行时间，不关心它输出了什么，所以用DEVNULL丢弃输出）。
-
-执行subprocess.Popen(...)后，目标程序会被启动，但此时它会等待输入（因为我们指定了stdin=PIPE）。
-.communicate(_stdin)：向程序输入数据并等待结束
-communicate是Popen对象的方法，作用是：
-
-向程序的标准输入发送_stdin数据。
-等待程序处理完数据并退出（即等待进程结束）。
-
-所以，subprocess.Popen(...).communicate(_stdin)的完整流程是：启动目标程序 → 发送_stdin数据给它 → 等待程序处理完毕并退出。而lambda: ...则将这个流程包装成了一个可调用的函数f（调用f()就会执行上述流程）。
- 测量时间：return timeit.timeit(f, number=1)
-timeit.timeit是 Python 用于精确测量代码执行时间的工具，这里的作用是测量f()函数的执行时间：
-
-第一个参数f：要测量的函数
-第二个参数number=1：表示只执行f()一次
-返回值：f()执行一次所花费的总时间（单位是秒）。
-用timeit而不是简单的time.time()计时，是因为timeit会自动屏蔽一些系统干扰（比如其他进程的短暂占用），测量更精确，适合这种对时间差异敏感的侧信道攻击。
-
-爆破部分keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;
-keys通过三部分拼接包含了可能候选字符的字符串：
-
-string.ascii_letters这是 Python 标准库string提供的常量，包含所有大小写英文字母，即：&#39;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&#39;
-
-string.digits同样是string库的常量，包含所有数字字符，即：&#39;0123456789&#39;
-
-&quot;_!&#125;&quot;这里没有直接用ASCll的可视化字符就是因为ASCII 表中的可视化字符（可打印字符）约有 95 个（从0x20空格到0x7E波浪号），但是其中有些字符比如#$%^&amp;*()等这些在ctf中基本不会出现，而由这三部分拼接的字符只有65个，可以显著缩短总耗时（如果题目有说特殊字符什么的再进行添加）
-
-
-然后进行循环爆破，通过创建字典sum_of_elapsed = &#123;&#125;手收集每个字符运行程序所用的时间，方便后面进行比对
-sum_of_elapsed[k] = 0  。。初始化字典payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;  //将该字符前面拼接完成了的字符串，后面拼接0sum_of_elapsed[k] += spawn(cmd, payload.encode()) //得到k字符的时间，以字典的形式
-
- max()函数的基本用法
-Python 内置的max()函数用于找出可迭代对象中的最大值。其基本语法为：
-max(可迭代对象, key=函数)
-
-
-可迭代对象：这里是sum_of_elapsed（字典），迭代时默认取字典的键（即候选字符）。
-key&#x3D;函数：指定一个函数，用于计算每个元素的 “比较值”，max()会根据这个 “比较值” 来判断最大值。
-
- key=sum_of_elapsed.get的作用是根据键获取对应的值
-
-当max()遍历字典的键（字符）时，key=sum_of_elapsed.get会告诉max()：不要直接比较键本身（字符），而是比较每个键对应的 值（时间）。
-
-c &#x3D; max(sum_of_elapsed, key&#x3D;sum_of_elapsed.get)取运行时间最大的字符，然后将其拼接在字符串p里面
-该题目采用的是逐字节对比，错误就直接退出，因此对的字符就接着进行下一轮比对，所以正确字符所用时间是大于错误字符的
-噪音噪音就是任何会干扰或污染你想要测量的那个纯净时序信号（也就是测量执行时间）的东西
-时序测信道攻击本就依靠比对时间的差异来推断出系统内部的秘密信息，因此需要极为准确的时间而很多因素都能影响测量时间（进程调度干扰，硬件资源竞争，指令执行波动，软件层面的额外操作，网络延迟波动，硬件环境变化），如果直接运行该脚本，这样得到运行时间必然会出现误差，从而导致得出的结果错误
-因此wp中做了’睡眠‘处理和cpu限制处理
-mov rax, 23h ; syscall 35 nanosleep  push 989680h ; 10 毫秒  push 0  mov rdi, rsp ; rsp 指向时间结构体  xor rsi, rsi  syscall  pop rax  pop rax  ret
-
-前者可以使输入对的字符总是比错的字符多执行 10 毫秒，后者可以减少时序测量的噪声在多核CPU环境中：
-
-进程可能在多个CPU核心之间迁移
-
-不同核心的负载、频率可能不同
-
-核心间的缓存不一致会导致时间波动
-
-
-缓存效应
-
-第一次运行：指令和数据需要加载到缓存
-
-后续运行：如果调度到不同核心，缓存失效
-
-这会导致时间差异，干扰真正的时序信号
-
-
-同时现代CPU有动态频率调整：
-
-轻负载时降频节能
-
-重负载时升频
-
-不同核心可能运行在不同频率
-
-
-限制CPU为1的效果攻击前（不限制CPU）：
-字符 &#x27;a&#x27;: 20.1ms, 19.8ms, 25.3ms, 20.2ms  ← 波动很大字符 &#x27;b&#x27;: 19.9ms, 20.1ms, 19.7ms, 24.8ms  ← 难以区分
-
-攻击后（限制CPU为1）：
-字符 &#x27;a&#x27;: 30.1ms, 30.2ms, 30.1ms, 30.3ms  ← 稳定字符 &#x27;b&#x27;: 20.1ms, 20.2ms, 20.1ms, 20.3ms  ← 稳定
-正确字符明显多10ms！
-限制代码Linux运行程序时绑定到特定CPU核心：
-# 绑定到 CPU 0taskset -c 0 python3 solve.py# 或者绑定到 CPU 0 运行二进制程序taskset -c 0 ./hyperjump# 同时限制两个程序taskset -c 0 python3 solve.py# 在另一个终端taskset -c 0 ./hyperjump
-
-对已运行的进程进行绑定：
-# 查找进程IDps aux | grep FileName# 绑定到 CPU 0taskset -cp 0 &lt;进程ID&gt;
-
-Windows 使用 start 命令 &#x2F;affinity 参数
-# 绑定到 CPU 0start /affinity 1 python solve.py# 绑定到 CPU 1  start /affinity 2 python solve.py# 绑定到 CPU 2start /affinity 4 python solve.py# 绑定到 CPU 3start /affinity 8 python solve.py# 绑定到 CPU 0 和 1start /affinity 3 python solve.py
-
-
-
-优化但即使是仅经过了前两步的‘降噪’操作，运行时仍然有很大的出错概率
-我一开始将‘睡眠’时间加到50ms乃至100ms，但仍是无法得到正确的flag，单纯的’睡眠‘无法得到准确的运行时间，还会大幅提高爆破时间
-因此我在spawn 函数里增加了循环测量：
-def spawn(cmd: str, _stdin: bytes) -&gt; float:    # 测量3次取最小值（减少异常值影响）    measurements = []    for _ in range(3):        f = lambda: subprocess.Popen(            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL        ).communicate(_stdin)        measurements.append(timeit.timeit(f, number=1))    return min(measurements)  # 取最小值而不是平均值
-
-通过多次测量取最小值，取最小值能过滤掉因系统中断导致的异常大值
-测量结果: [30.1, 29.8, 30.3] → 取29.8测量结果: [20.1, 25.3, 20.2] → 取20.1  # 异常值25.3被过滤
-差异: 29.8 - 20.1 &#x3D; 9.7ms (明显!)
-为什么取最小值而不是平均值？
-
-系统中断通常让时间变长而不是变短
-
-正确字符的最小值代表”无干扰”情况下的真实时间
-
-错误字符的最小值也代表其真实基准时间
-这三个降低测量时间的不稳定性方法使得我得到了绝大部分正确的flag，但是还有一个问题也就是最后一个字符错误
-
-
-最后一个误差来自结尾的字符也就是&#125;，这是因为程序逻辑的特殊性导致的，在最后一个字符运行完毕后输出结果后退出，而不管是正确还是错误的字符，它们都是相同的睡眠时间，正确字符对比结束后没有再多执行10ms的时间，时间差别太小，但是爆破花括号内的字符也够了，能得到flag
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
       </categories>
   </entry>
 </search>
