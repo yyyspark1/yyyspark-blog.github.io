@@ -824,6 +824,154 @@ int main(int argc, char *argv[], char *envp[]) &#123;    return 0;&#125;
       </categories>
   </entry>
   <entry>
+    <title>SM4加密原理解析</title>
+    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
+    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
+SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
+基础概念概览
+
+
+项目
+描述
+
+
+
+算法类型
+对称加密算法
+
+
+分组长度
+128 比特（16 字节）
+
+
+密钥长度
+128 比特（16 字节）
+
+
+轮数
+通常为32 轮
+
+
+主要结构
+Feistel 类似结构（实际上是非经典 Feistel）
+
+
+用途
+国密标准中的数据加密，WAPI 无线局域网等
+
+
+整体流程概览
+密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
+分组加密过程：
+将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
+
+每一轮：
+
+使用轮密钥和前四个字进行非线性变换，生成一个新的字；
+滑动更新 4 个字；
+
+
+加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
+
+
+
+解密流程：与加密几乎一样，仅轮密钥逆序使用。
+
+SM4算法的完整过程轮密钥扩展
+明文加密
+密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
+密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
+第一步：密钥与系统参数的异或
+
+初始常量：FK[0..3]
+
+FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
+
+
+系统参数 CK[0..31]：是固定的 32 个 32bit 常数
+
+CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
+
+过程：
+k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
+
+第二步：获取子密钥：
+
+初始密钥与 FK 异或，得 K[0..3]
+
+每一轮：
+
+
+K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
+
+其中 T&#39;() 是不同的线性变换（密钥扩展用）：
+T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
+
+函数T
+函数 T 的定义T(x) = L(τ(x))
+
+它由两部分组成：
+
+τ(x)：非线性变换，也称 S-box 变换。
+
+L(x)：线性变换，用于实现扩散。
+
+
+τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
+
+将这个 32 位 word 拆成 4 个字节。
+
+每个字节经过 S-box 替换（查表替换）。
+
+将替换后的 4 个字节重新组合成一个 32 位 word。
+
+
+L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
+L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
+
+明文加密处的线性变换 L：
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
+明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
+
+PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
+ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
+
+整体结构
+明文处理大致分解为3步：
+
+将128bit的明文分成4个32bit的字X1,X2,X3,X4。
+
+将上述得到的字进行32轮的轮操作。
+
+最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
+
+
+轮操作
+加密总体流程图
+明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
+
+
+将后三个4字节的明文与轮密钥进行异或，得到A
+
+将32 位 word 的 A 拆成 4 个字节进行S-box 替换
+
+L(x) — 线性扩散变换
+
+
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+最后将首位4字节数据和C的输出进行异或
+X[i+4] = X[i] ^ C
+
+整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>安卓的基本结构</title>
     <url>/2026/04/07/%E5%AE%89%E5%8D%93%E7%9A%84%E5%9F%BA%E6%9C%AC%E7%BB%93%E6%9E%84/</url>
     <content><![CDATA[最近打算专攻Android逆向，在这里记录一下最开始的Android基础知识
@@ -1058,294 +1206,6 @@ FltGetStreamHandleContext函数是用来****获取上下文
 然后我们接着看sub_1400010C0函数
 ​    
 很明显的base64的逻辑 得到flag：H&amp;NCTF{3z_M1n1f1173r_C0mmun1c4710n_b9c1daa9-a2b3-491f975b-de44e76e0a99}
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>时序侧信道攻击</title>
-    <url>/2025/11/07/%E6%97%B6%E5%BA%8F%E4%BE%A7%E4%BF%A1%E9%81%93%E6%94%BB%E5%87%BB/</url>
-    <content><![CDATA[看到nk战队的wp上HyperJump题用的时序侧信道攻击，参照nk战队的wp进行时序攻击的学习和思考
-时序测信道攻击的原理和防范措施核心思想：通过测量一个系统执行操作所花费的时间，系统的执行时间与处理的数据内容、内部操作序列密切相关，攻击者通过精准测量执行时间并分析差异来推断出系统内部的秘密信息（如加密密钥、密码等）。
-防范措施：既然攻击者利用的是操作时间差，那么我们就能知道防御的核心原则是——消除执行时间与秘密数据之间的任何依赖关系。
-
-恒定时间编程
-添加随机延迟
-算法级屏蔽 操作执行前，先用一个随机值对秘密数据进行盲化。操作完成后，再去除盲化因子。这样，算法核心处理的就是随机化的数据，其执行时间不再与原始秘密相关
-
-以上三种措施都能有效防范该攻击
-对wp中的exp分析import subprocess  #用于启动外部程序并与其交互import timeit      #用于精确测量代码执行时间import string      #提供字符串常量（如字母、数字）  def spawn(cmd: str, _stdin: bytes) -&gt; float:      f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)    cmd = &quot;./hyperjump&quot;  keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;  print(f&quot;[-] Finding password&quot;)  p = &quot;flag&#123;&quot;  for j inrange(24 - len(p)):      sum_of_elapsed = &#123;&#125;      for k in keys:          sum_of_elapsed[k] = 0          payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;          sum_of_elapsed[k] += spawn(cmd, payload.encode())        c = max(sum_of_elapsed, key=sum_of_elapsed.get)      p += c      print(f&quot;[+] Done: Assuming p[&#123;j&#125;] to be &#123;c&#125;&quot;)    iflen(p) == 0:      print(&quot;[-] Attack failed.&quot;)    print(f&quot;[+] Done! Password is \n&#123;p&#125;&quot;)  print(p)
-
-整体就是检测程序运行的时间和爆破
-检测程序运行的时间函数分析def spawn(cmd: str, _stdin: bytes) -&gt; float:  指定运行程序路径和要输入给目标程序的数据（必须是字节类型，因为程序输入需要二进制数据），然后返回一个浮点数的值    f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)  
-
-subprocess.Popen：启动外部程序
-subprocess是 Python 用于调用外部程序的库，Popen是其中最核心的类，用于创建一个新的进程来运行目标程序。这里的参数：
-
-cmd：要运行的程序路径（比如./hyperjump）。
-stdin=subprocess.PIPE：表示 “允许向这个程序的标准输入（stdin）发送数据”（可以理解为给程序 “喂” 输入）。
-stdout=subprocess.DEVNULL：表示 “忽略程序的标准输出（stdout）”（我们只关心程序运行时间，不关心它输出了什么，所以用DEVNULL丢弃输出）。
-
-执行subprocess.Popen(...)后，目标程序会被启动，但此时它会等待输入（因为我们指定了stdin=PIPE）。
-.communicate(_stdin)：向程序输入数据并等待结束
-communicate是Popen对象的方法，作用是：
-
-向程序的标准输入发送_stdin数据。
-等待程序处理完数据并退出（即等待进程结束）。
-
-所以，subprocess.Popen(...).communicate(_stdin)的完整流程是：启动目标程序 → 发送_stdin数据给它 → 等待程序处理完毕并退出。而lambda: ...则将这个流程包装成了一个可调用的函数f（调用f()就会执行上述流程）。
- 测量时间：return timeit.timeit(f, number=1)
-timeit.timeit是 Python 用于精确测量代码执行时间的工具，这里的作用是测量f()函数的执行时间：
-
-第一个参数f：要测量的函数
-第二个参数number=1：表示只执行f()一次
-返回值：f()执行一次所花费的总时间（单位是秒）。
-用timeit而不是简单的time.time()计时，是因为timeit会自动屏蔽一些系统干扰（比如其他进程的短暂占用），测量更精确，适合这种对时间差异敏感的侧信道攻击。
-
-爆破部分keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;
-keys通过三部分拼接包含了可能候选字符的字符串：
-
-string.ascii_letters这是 Python 标准库string提供的常量，包含所有大小写英文字母，即：&#39;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&#39;
-
-string.digits同样是string库的常量，包含所有数字字符，即：&#39;0123456789&#39;
-
-&quot;_!&#125;&quot;这里没有直接用ASCll的可视化字符就是因为ASCII 表中的可视化字符（可打印字符）约有 95 个（从0x20空格到0x7E波浪号），但是其中有些字符比如#$%^&amp;*()等这些在ctf中基本不会出现，而由这三部分拼接的字符只有65个，可以显著缩短总耗时（如果题目有说特殊字符什么的再进行添加）
-
-
-然后进行循环爆破，通过创建字典sum_of_elapsed = &#123;&#125;手收集每个字符运行程序所用的时间，方便后面进行比对
-sum_of_elapsed[k] = 0  。。初始化字典payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;  //将该字符前面拼接完成了的字符串，后面拼接0sum_of_elapsed[k] += spawn(cmd, payload.encode()) //得到k字符的时间，以字典的形式
-
- max()函数的基本用法
-Python 内置的max()函数用于找出可迭代对象中的最大值。其基本语法为：
-max(可迭代对象, key=函数)
-
-
-可迭代对象：这里是sum_of_elapsed（字典），迭代时默认取字典的键（即候选字符）。
-key&#x3D;函数：指定一个函数，用于计算每个元素的 “比较值”，max()会根据这个 “比较值” 来判断最大值。
-
- key=sum_of_elapsed.get的作用是根据键获取对应的值
-
-当max()遍历字典的键（字符）时，key=sum_of_elapsed.get会告诉max()：不要直接比较键本身（字符），而是比较每个键对应的 值（时间）。
-
-c &#x3D; max(sum_of_elapsed, key&#x3D;sum_of_elapsed.get)取运行时间最大的字符，然后将其拼接在字符串p里面
-该题目采用的是逐字节对比，错误就直接退出，因此对的字符就接着进行下一轮比对，所以正确字符所用时间是大于错误字符的
-噪音噪音就是任何会干扰或污染你想要测量的那个纯净时序信号（也就是测量执行时间）的东西
-时序测信道攻击本就依靠比对时间的差异来推断出系统内部的秘密信息，因此需要极为准确的时间而很多因素都能影响测量时间（进程调度干扰，硬件资源竞争，指令执行波动，软件层面的额外操作，网络延迟波动，硬件环境变化），如果直接运行该脚本，这样得到运行时间必然会出现误差，从而导致得出的结果错误
-因此wp中做了’睡眠‘处理和cpu限制处理
-mov rax, 23h ; syscall 35 nanosleep  push 989680h ; 10 毫秒  push 0  mov rdi, rsp ; rsp 指向时间结构体  xor rsi, rsi  syscall  pop rax  pop rax  ret
-
-前者可以使输入对的字符总是比错的字符多执行 10 毫秒，后者可以减少时序测量的噪声在多核CPU环境中：
-
-进程可能在多个CPU核心之间迁移
-
-不同核心的负载、频率可能不同
-
-核心间的缓存不一致会导致时间波动
-
-
-缓存效应
-
-第一次运行：指令和数据需要加载到缓存
-
-后续运行：如果调度到不同核心，缓存失效
-
-这会导致时间差异，干扰真正的时序信号
-
-
-同时现代CPU有动态频率调整：
-
-轻负载时降频节能
-
-重负载时升频
-
-不同核心可能运行在不同频率
-
-
-限制CPU为1的效果攻击前（不限制CPU）：
-字符 &#x27;a&#x27;: 20.1ms, 19.8ms, 25.3ms, 20.2ms  ← 波动很大字符 &#x27;b&#x27;: 19.9ms, 20.1ms, 19.7ms, 24.8ms  ← 难以区分
-
-攻击后（限制CPU为1）：
-字符 &#x27;a&#x27;: 30.1ms, 30.2ms, 30.1ms, 30.3ms  ← 稳定字符 &#x27;b&#x27;: 20.1ms, 20.2ms, 20.1ms, 20.3ms  ← 稳定
-正确字符明显多10ms！
-限制代码Linux运行程序时绑定到特定CPU核心：
-# 绑定到 CPU 0taskset -c 0 python3 solve.py# 或者绑定到 CPU 0 运行二进制程序taskset -c 0 ./hyperjump# 同时限制两个程序taskset -c 0 python3 solve.py# 在另一个终端taskset -c 0 ./hyperjump
-
-对已运行的进程进行绑定：
-# 查找进程IDps aux | grep FileName# 绑定到 CPU 0taskset -cp 0 &lt;进程ID&gt;
-
-Windows 使用 start 命令 &#x2F;affinity 参数
-# 绑定到 CPU 0start /affinity 1 python solve.py# 绑定到 CPU 1  start /affinity 2 python solve.py# 绑定到 CPU 2start /affinity 4 python solve.py# 绑定到 CPU 3start /affinity 8 python solve.py# 绑定到 CPU 0 和 1start /affinity 3 python solve.py
-
-
-
-优化但即使是仅经过了前两步的‘降噪’操作，运行时仍然有很大的出错概率
-我一开始将‘睡眠’时间加到50ms乃至100ms，但仍是无法得到正确的flag，单纯的’睡眠‘无法得到准确的运行时间，还会大幅提高爆破时间
-因此我在spawn 函数里增加了循环测量：
-def spawn(cmd: str, _stdin: bytes) -&gt; float:    # 测量3次取最小值（减少异常值影响）    measurements = []    for _ in range(3):        f = lambda: subprocess.Popen(            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL        ).communicate(_stdin)        measurements.append(timeit.timeit(f, number=1))    return min(measurements)  # 取最小值而不是平均值
-
-通过多次测量取最小值，取最小值能过滤掉因系统中断导致的异常大值
-测量结果: [30.1, 29.8, 30.3] → 取29.8测量结果: [20.1, 25.3, 20.2] → 取20.1  # 异常值25.3被过滤
-差异: 29.8 - 20.1 &#x3D; 9.7ms (明显!)
-为什么取最小值而不是平均值？
-
-系统中断通常让时间变长而不是变短
-
-正确字符的最小值代表”无干扰”情况下的真实时间
-
-错误字符的最小值也代表其真实基准时间
-这三个降低测量时间的不稳定性方法使得我得到了绝大部分正确的flag，但是还有一个问题也就是最后一个字符错误
-
-
-最后一个误差来自结尾的字符也就是&#125;，这是因为程序逻辑的特殊性导致的，在最后一个字符运行完毕后输出结果后退出，而不管是正确还是错误的字符，它们都是相同的睡眠时间，正确字符对比结束后没有再多执行10ms的时间，时间差别太小，但是爆破花括号内的字符也够了，能得到flag
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
-    <title>SM4加密原理解析</title>
-    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
-    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
-SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
-基础概念概览
-
-
-项目
-描述
-
-
-
-算法类型
-对称加密算法
-
-
-分组长度
-128 比特（16 字节）
-
-
-密钥长度
-128 比特（16 字节）
-
-
-轮数
-通常为32 轮
-
-
-主要结构
-Feistel 类似结构（实际上是非经典 Feistel）
-
-
-用途
-国密标准中的数据加密，WAPI 无线局域网等
-
-
-整体流程概览
-密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
-分组加密过程：
-将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
-
-每一轮：
-
-使用轮密钥和前四个字进行非线性变换，生成一个新的字；
-滑动更新 4 个字；
-
-
-加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
-
-
-
-解密流程：与加密几乎一样，仅轮密钥逆序使用。
-
-SM4算法的完整过程轮密钥扩展
-明文加密
-密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
-密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
-第一步：密钥与系统参数的异或
-
-初始常量：FK[0..3]
-
-FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
-
-
-系统参数 CK[0..31]：是固定的 32 个 32bit 常数
-
-CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
-
-过程：
-k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
-
-第二步：获取子密钥：
-
-初始密钥与 FK 异或，得 K[0..3]
-
-每一轮：
-
-
-K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
-
-其中 T&#39;() 是不同的线性变换（密钥扩展用）：
-T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
-
-函数T
-函数 T 的定义T(x) = L(τ(x))
-
-它由两部分组成：
-
-τ(x)：非线性变换，也称 S-box 变换。
-
-L(x)：线性变换，用于实现扩散。
-
-
-τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
-
-将这个 32 位 word 拆成 4 个字节。
-
-每个字节经过 S-box 替换（查表替换）。
-
-将替换后的 4 个字节重新组合成一个 32 位 word。
-
-
-L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
-L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
-
-明文加密处的线性变换 L：
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
-明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
-
-PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
-ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
-
-整体结构
-明文处理大致分解为3步：
-
-将128bit的明文分成4个32bit的字X1,X2,X3,X4。
-
-将上述得到的字进行32轮的轮操作。
-
-最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
-
-
-轮操作
-加密总体流程图
-明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
-
-
-将后三个4字节的明文与轮密钥进行异或，得到A
-
-将32 位 word 的 A 拆成 4 个字节进行S-box 替换
-
-L(x) — 线性扩散变换
-
-
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-最后将首位4字节数据和C的输出进行异或
-X[i+4] = X[i] ^ C
-
-整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
 ]]></content>
       <categories>
         <category>Windows逆向</category>
@@ -1648,6 +1508,146 @@ void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0]
 没有 key 也没有 S[]，你只能通过解密路径还原明文。
 
 
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>时序侧信道攻击</title>
+    <url>/2025/11/07/%E6%97%B6%E5%BA%8F%E4%BE%A7%E4%BF%A1%E9%81%93%E6%94%BB%E5%87%BB/</url>
+    <content><![CDATA[看到nk战队的wp上HyperJump题用的时序侧信道攻击，参照nk战队的wp进行时序攻击的学习和思考
+时序测信道攻击的原理和防范措施核心思想：通过测量一个系统执行操作所花费的时间，系统的执行时间与处理的数据内容、内部操作序列密切相关，攻击者通过精准测量执行时间并分析差异来推断出系统内部的秘密信息（如加密密钥、密码等）。
+防范措施：既然攻击者利用的是操作时间差，那么我们就能知道防御的核心原则是——消除执行时间与秘密数据之间的任何依赖关系。
+
+恒定时间编程
+添加随机延迟
+算法级屏蔽 操作执行前，先用一个随机值对秘密数据进行盲化。操作完成后，再去除盲化因子。这样，算法核心处理的就是随机化的数据，其执行时间不再与原始秘密相关
+
+以上三种措施都能有效防范该攻击
+对wp中的exp分析import subprocess  #用于启动外部程序并与其交互import timeit      #用于精确测量代码执行时间import string      #提供字符串常量（如字母、数字）  def spawn(cmd: str, _stdin: bytes) -&gt; float:      f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)    cmd = &quot;./hyperjump&quot;  keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;  print(f&quot;[-] Finding password&quot;)  p = &quot;flag&#123;&quot;  for j inrange(24 - len(p)):      sum_of_elapsed = &#123;&#125;      for k in keys:          sum_of_elapsed[k] = 0          payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;          sum_of_elapsed[k] += spawn(cmd, payload.encode())        c = max(sum_of_elapsed, key=sum_of_elapsed.get)      p += c      print(f&quot;[+] Done: Assuming p[&#123;j&#125;] to be &#123;c&#125;&quot;)    iflen(p) == 0:      print(&quot;[-] Attack failed.&quot;)    print(f&quot;[+] Done! Password is \n&#123;p&#125;&quot;)  print(p)
+
+整体就是检测程序运行的时间和爆破
+检测程序运行的时间函数分析def spawn(cmd: str, _stdin: bytes) -&gt; float:  指定运行程序路径和要输入给目标程序的数据（必须是字节类型，因为程序输入需要二进制数据），然后返回一个浮点数的值    f = lambda: subprocess.Popen(          cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL      ).communicate(_stdin)      return timeit.timeit(f, number=1)  
+
+subprocess.Popen：启动外部程序
+subprocess是 Python 用于调用外部程序的库，Popen是其中最核心的类，用于创建一个新的进程来运行目标程序。这里的参数：
+
+cmd：要运行的程序路径（比如./hyperjump）。
+stdin=subprocess.PIPE：表示 “允许向这个程序的标准输入（stdin）发送数据”（可以理解为给程序 “喂” 输入）。
+stdout=subprocess.DEVNULL：表示 “忽略程序的标准输出（stdout）”（我们只关心程序运行时间，不关心它输出了什么，所以用DEVNULL丢弃输出）。
+
+执行subprocess.Popen(...)后，目标程序会被启动，但此时它会等待输入（因为我们指定了stdin=PIPE）。
+.communicate(_stdin)：向程序输入数据并等待结束
+communicate是Popen对象的方法，作用是：
+
+向程序的标准输入发送_stdin数据。
+等待程序处理完数据并退出（即等待进程结束）。
+
+所以，subprocess.Popen(...).communicate(_stdin)的完整流程是：启动目标程序 → 发送_stdin数据给它 → 等待程序处理完毕并退出。而lambda: ...则将这个流程包装成了一个可调用的函数f（调用f()就会执行上述流程）。
+ 测量时间：return timeit.timeit(f, number=1)
+timeit.timeit是 Python 用于精确测量代码执行时间的工具，这里的作用是测量f()函数的执行时间：
+
+第一个参数f：要测量的函数
+第二个参数number=1：表示只执行f()一次
+返回值：f()执行一次所花费的总时间（单位是秒）。
+用timeit而不是简单的time.time()计时，是因为timeit会自动屏蔽一些系统干扰（比如其他进程的短暂占用），测量更精确，适合这种对时间差异敏感的侧信道攻击。
+
+爆破部分keys = string.ascii_letters + string.digits + &quot;_!&#125;&quot;
+keys通过三部分拼接包含了可能候选字符的字符串：
+
+string.ascii_letters这是 Python 标准库string提供的常量，包含所有大小写英文字母，即：&#39;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&#39;
+
+string.digits同样是string库的常量，包含所有数字字符，即：&#39;0123456789&#39;
+
+&quot;_!&#125;&quot;这里没有直接用ASCll的可视化字符就是因为ASCII 表中的可视化字符（可打印字符）约有 95 个（从0x20空格到0x7E波浪号），但是其中有些字符比如#$%^&amp;*()等这些在ctf中基本不会出现，而由这三部分拼接的字符只有65个，可以显著缩短总耗时（如果题目有说特殊字符什么的再进行添加）
+
+
+然后进行循环爆破，通过创建字典sum_of_elapsed = &#123;&#125;手收集每个字符运行程序所用的时间，方便后面进行比对
+sum_of_elapsed[k] = 0  。。初始化字典payload = p + k + keys[0] * (24 - 1 - len(p)) + &#x27;\n&#x27;  //将该字符前面拼接完成了的字符串，后面拼接0sum_of_elapsed[k] += spawn(cmd, payload.encode()) //得到k字符的时间，以字典的形式
+
+ max()函数的基本用法
+Python 内置的max()函数用于找出可迭代对象中的最大值。其基本语法为：
+max(可迭代对象, key=函数)
+
+
+可迭代对象：这里是sum_of_elapsed（字典），迭代时默认取字典的键（即候选字符）。
+key&#x3D;函数：指定一个函数，用于计算每个元素的 “比较值”，max()会根据这个 “比较值” 来判断最大值。
+
+ key=sum_of_elapsed.get的作用是根据键获取对应的值
+
+当max()遍历字典的键（字符）时，key=sum_of_elapsed.get会告诉max()：不要直接比较键本身（字符），而是比较每个键对应的 值（时间）。
+
+c &#x3D; max(sum_of_elapsed, key&#x3D;sum_of_elapsed.get)取运行时间最大的字符，然后将其拼接在字符串p里面
+该题目采用的是逐字节对比，错误就直接退出，因此对的字符就接着进行下一轮比对，所以正确字符所用时间是大于错误字符的
+噪音噪音就是任何会干扰或污染你想要测量的那个纯净时序信号（也就是测量执行时间）的东西
+时序测信道攻击本就依靠比对时间的差异来推断出系统内部的秘密信息，因此需要极为准确的时间而很多因素都能影响测量时间（进程调度干扰，硬件资源竞争，指令执行波动，软件层面的额外操作，网络延迟波动，硬件环境变化），如果直接运行该脚本，这样得到运行时间必然会出现误差，从而导致得出的结果错误
+因此wp中做了’睡眠‘处理和cpu限制处理
+mov rax, 23h ; syscall 35 nanosleep  push 989680h ; 10 毫秒  push 0  mov rdi, rsp ; rsp 指向时间结构体  xor rsi, rsi  syscall  pop rax  pop rax  ret
+
+前者可以使输入对的字符总是比错的字符多执行 10 毫秒，后者可以减少时序测量的噪声在多核CPU环境中：
+
+进程可能在多个CPU核心之间迁移
+
+不同核心的负载、频率可能不同
+
+核心间的缓存不一致会导致时间波动
+
+
+缓存效应
+
+第一次运行：指令和数据需要加载到缓存
+
+后续运行：如果调度到不同核心，缓存失效
+
+这会导致时间差异，干扰真正的时序信号
+
+
+同时现代CPU有动态频率调整：
+
+轻负载时降频节能
+
+重负载时升频
+
+不同核心可能运行在不同频率
+
+
+限制CPU为1的效果攻击前（不限制CPU）：
+字符 &#x27;a&#x27;: 20.1ms, 19.8ms, 25.3ms, 20.2ms  ← 波动很大字符 &#x27;b&#x27;: 19.9ms, 20.1ms, 19.7ms, 24.8ms  ← 难以区分
+
+攻击后（限制CPU为1）：
+字符 &#x27;a&#x27;: 30.1ms, 30.2ms, 30.1ms, 30.3ms  ← 稳定字符 &#x27;b&#x27;: 20.1ms, 20.2ms, 20.1ms, 20.3ms  ← 稳定
+正确字符明显多10ms！
+限制代码Linux运行程序时绑定到特定CPU核心：
+# 绑定到 CPU 0taskset -c 0 python3 solve.py# 或者绑定到 CPU 0 运行二进制程序taskset -c 0 ./hyperjump# 同时限制两个程序taskset -c 0 python3 solve.py# 在另一个终端taskset -c 0 ./hyperjump
+
+对已运行的进程进行绑定：
+# 查找进程IDps aux | grep FileName# 绑定到 CPU 0taskset -cp 0 &lt;进程ID&gt;
+
+Windows 使用 start 命令 &#x2F;affinity 参数
+# 绑定到 CPU 0start /affinity 1 python solve.py# 绑定到 CPU 1  start /affinity 2 python solve.py# 绑定到 CPU 2start /affinity 4 python solve.py# 绑定到 CPU 3start /affinity 8 python solve.py# 绑定到 CPU 0 和 1start /affinity 3 python solve.py
+
+
+
+优化但即使是仅经过了前两步的‘降噪’操作，运行时仍然有很大的出错概率
+我一开始将‘睡眠’时间加到50ms乃至100ms，但仍是无法得到正确的flag，单纯的’睡眠‘无法得到准确的运行时间，还会大幅提高爆破时间
+因此我在spawn 函数里增加了循环测量：
+def spawn(cmd: str, _stdin: bytes) -&gt; float:    # 测量3次取最小值（减少异常值影响）    measurements = []    for _ in range(3):        f = lambda: subprocess.Popen(            cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL        ).communicate(_stdin)        measurements.append(timeit.timeit(f, number=1))    return min(measurements)  # 取最小值而不是平均值
+
+通过多次测量取最小值，取最小值能过滤掉因系统中断导致的异常大值
+测量结果: [30.1, 29.8, 30.3] → 取29.8测量结果: [20.1, 25.3, 20.2] → 取20.1  # 异常值25.3被过滤
+差异: 29.8 - 20.1 &#x3D; 9.7ms (明显!)
+为什么取最小值而不是平均值？
+
+系统中断通常让时间变长而不是变短
+
+正确字符的最小值代表”无干扰”情况下的真实时间
+
+错误字符的最小值也代表其真实基准时间
+这三个降低测量时间的不稳定性方法使得我得到了绝大部分正确的flag，但是还有一个问题也就是最后一个字符错误
+
+
+最后一个误差来自结尾的字符也就是&#125;，这是因为程序逻辑的特殊性导致的，在最后一个字符运行完毕后输出结果后退出，而不管是正确还是错误的字符，它们都是相同的睡眠时间，正确字符对比结束后没有再多执行10ms的时间，时间差别太小，但是爆破花括号内的字符也够了，能得到flag
 ]]></content>
       <categories>
         <category>Windows逆向</category>
