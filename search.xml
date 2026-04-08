@@ -1,6 +1,209 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>Android NDK 构架了解与逆向</title>
+    <url>/2026/04/08/Android%20NDK%20%E6%9E%84%E6%9E%B6%E4%BA%86%E8%A7%A3%E4%B8%8E%E9%80%86%E5%90%91/</url>
+    <content><![CDATA[SDK、NDK 和 JNI、SO、ELF 的关系NDK是安卓原生开发工具包，作用：把 C&#x2F;C++ 代码 → 编译成 .so（ELF 文件） SDK是安卓Java&#x2F;Kotlin 开发工具包 ，作用：写 APP 界面、逻辑、四大组件。 JNI是Java ↔ C&#x2F;C++ 的调用桥梁
+
+
+
+概念
+作用
+
+
+
+NDK
+安卓原生开发工具包，作用：把 C&#x2F;C++ 代码 → 编译成 .so（ELF 文件）
+
+
+SDK
+安卓Java&#x2F;Kotlin 开发工具包 ，作用：提供 API、编译器、模拟器
+
+
+JNI
+Java ↔ C&#x2F;C++ 的调用桥梁
+
+
+关系链Java 代码 (SDK 编写)        ↓ (需要调用 C 功能)      JNI 桥梁        ↓C/C++ 代码 (NDK 编译)        ↓   .so 文件 (ELF 格式)
+
+JNI 基础开发流程完整流程图
+Kotlin/Java 声明 native 方法 	 ↓（告诉Java：这个方法我不实现，交给C/C++） 编写 C/C++ 实现（严格遵守 JNI 函数名规则）	 ↓（C++ 写真正逻辑） CMakeLists.txt 配置编译 	 ↓（告诉编译器：要编译哪个文件、生成什么so）build.gradle 关联 NDK + CMake 	 ↓（告诉Android Studio：用NDK工具编译）NDK 交叉编译 → libxxx.so	 ↓（C++ → 二进制so库） 运行时 System.loadLibrary 加载	 ↓（把so装进虚拟机）调用 native 方法	 ↓（Java ↔ C 互相通信）
+
+第一步：Kotlin声明 native 方法class MainActivity : AppCompatActivity() &#123;    // 声明 native 方法，- Kotlin 用 external，Java 用 native    external fun stringFromJNI(): String    external fun add(a: Int, b: Int): Int    override fun onCreate(...) &#123;        System.loadLibrary(&quot;mylib&quot;)  // 加载 libmylib.so        Log.d(&quot;JNI&quot;, stringFromJNI())    &#125;&#125;class MainActivity : AppCompatActivity() 
+
+
+这是安卓的 页面（Activity）
+所有页面都继承自 AppCompatActivity
+
+&#96;System.loadLibrary(“mylib”);
+
+加载 C&#x2F;C++ 编译好的 libmylib.so 动态库文件
+
+ Log.d(标签, 内容)
+
+把返回的字符串打印到 Logcat 日志，你就能看到 C++ 传回来的内容
+
+第二步：编写 C&#x2F;C++ 实现#include &lt;jni.h&gt;#include &lt;string&gt;// 命名规范：Java_包名_类名_方法名（点换下划线）extern &quot;C&quot; JNIEXPORT jstring JNICALLJava_com_example_myapp_MainActivity_stringFromJNI(        JNIEnv* env,        jobject /* this */) &#123;    return env-&gt;NewStringUTF(&quot;Hello from C++!&quot;);&#125;extern &quot;C&quot; JNIEXPORT jint JNICALLJava_com_example_myapp_MainActivity_add(        JNIEnv* env,        jobject /* this */,        jint a,        jint b) &#123;    return a + b;&#125;
+
+第一个方法：stringFromJNI extern &quot;C&quot;
+
+告诉编译器：按 C 语言格式编译
+不加的话，函数名会被打乱，Kotlin 找不到方法 JNIEXPORT
+JNI 标记：这个函数可以被外部调用 jstring
+返回值类型&#x3D; Java&#x2F;Kotlin 里的 String JNICALL
+JNI 调用约定（固定写法，不用管） 参数
+
+JNIEnv* env
+
+
+JNI 环境指针
+用来创建字符串、操作数组等
+
+jobject
+
+
+相当于 Kotlin 里的 this
+指向调用该方法的 Activity 对象
+
+return env-&gt;NewStringUTF(&quot;Hello from C++!&quot;);
+
+
+创建一个 C++ 字符串
+转成 JNI 字符串（jstring）
+返回给 Kotlin
+
+第二个方法：add就是实现了一个a + b
+第三步：CMakeLists.txt编译 C&#x2F;C++ 代码成 .so 库的配置文件
+cmake_minimum_required(VERSION 3.22.1)//指定 CMake 最低版本project(&quot;mylib&quot;)//项目名称，对应前面写的：System.loadLibrary(&quot;mylib&quot;)//创建库add_library(      mylib        // 库名 → 生成 libmylib.so      SHARED       // 动态库      native-lib.cpp //要编译的 C++ 文件)find_library(log-lib log)//找到 Android 日志库target_link_libraries(mylib $&#123;log-lib&#125;)//链接 Android 日志库
+
+第四步：build.gradle 关联android &#123;	// 1. C++ 编译配置    defaultConfig &#123;        externalNativeBuild &#123;            cmake &#123;                cppFlags &quot;-std=c++17&quot; // 使用 C++17 标准            &#125;        &#125;    &#125;    externalNativeBuild &#123;        cmake &#123;            path &quot;src/main/cpp/CMakeLists.txt&quot; // CMake 文件路径            version &quot;3.22.1&quot;  // CMake 版本        &#125;    &#125;&#125;
+
+JNI 数据类型对照表
+
+
+签名符号
+C&#x2F;C++
+Java&#x2F;Ketlin
+
+
+
+V
+void
+void
+
+
+Z
+jboolean
+boolean
+
+
+I
+jint
+int
+
+
+J
+jlong
+long
+
+
+D
+jdouble
+double
+
+
+F
+jfloat
+float
+
+
+B
+jbyte
+byte
+
+
+C
+jchar
+char
+
+
+S
+jshort
+short
+
+
+[Z
+jbooleanArray
+boolean[]
+
+
+[I
+jintArray
+int[]
+
+
+[J
+jlongArray
+long[]
+
+
+[D
+jdoubleArray
+double[]
+
+
+[F
+jfloatArray
+float[]
+
+
+[B
+jbyteArray
+byte[]
+
+
+[C
+jcharArray
+char[]
+
+
+[S
+jshortArray
+short[]
+
+
+Ljava&#x2F;lang&#x2F;String;
+jstring
+String
+
+
+L 完整包名加类名；
+jobject
+class
+
+
+静态注册与动态注册JVM查找Native方法有两种方式： 1、按照JNI规范的命名规则进行查找，这种方式叫静态注册。 2、调用JNI提供的RegisterNatives函数，将本地函数注册到JVM中，这种方式叫动态注册
+这两种方法就是JNI将Java方法与Native的方法对应联系起来的
+静态注册静态注册指的是在编译时或程序启动时，就已经确定了注册的内容。也就是说，静态注册发生在编译或程序启动时，且通常是在源代码中显式声明的。
+C语言的函数和Java层native方法的对应关系，在函数名上就可以体现，逆向很方便，直接在so文件的导出函数里面以Java*包名*类名_方法名就可以找到对应java层中声明的native方法
+静态注册流程System.loadLibrary(&quot;mylib&quot;)        ↓JVM 加载 libmylib.so        ↓调用 native 方法时，按命名规则在 SO 中查找符号        ↓找到 → 执行未找到 → UnsatisfiedLinkError
+
+例题：huhstsec平台的Native层反编译（静态注册）首先将下载好的APK附件拖入jadx中进行查看，对主要函数进行分析 
+由此我们可以知道summertrain就是所加载的so文件 对APK文件进行解压，我们可以直接在lib里面看到几个文件夹  这些文件夹分别代表不同的设备类型 关于Android系统整体架构，请看：Android系统整体架构 我们点进V8a，将唯一的一个so文件拖入IDA中进行分析，按照刚刚所述，那么这个题目我们要找的函数名为：Java_com_swdd_summertrain_MainActivity_Check 找到对应函数即可直接获得flag
+动态注册在 SO 加载时，通过 JNI_OnLoad 函数手动建立 Java 方法与 C 函数的映射关系
+动态注册流程System.loadLibrary(&quot;mylib&quot;)        ↓JVM 加载 libmylib.so        ↓自动调用 JNI_OnLoad()        ↓RegisterNatives() 把映射表注册到虚拟机        ↓调用 native 方法时，直接通过映射表找到函数        ↓执行（无需再查找符号）
+
+动态注册的优点是可以自由命名 Native 方法，缺点是如果 Native 方法过多，操作比较麻烦。
+例题：huhstsec平台的动态注册很明显让我们到so文件中去找 丢到IDA中反编译没有查到Java+包名+类名+Native方法名类型的函数 查找JNI_OnLoad函数  点开off_37A90函数  点开sub_172E0函数去看  这里_mm_xor_si128 是 Intel 提供的 SIMD指令集 在函数sub_172E0 中，使用 mm_xor_si128 函数时传入了 -1LL 作为其中一个参数。在计算机中，整数 -1 在二进制补码表示下是全 1。所以这里异或就相当于取反操作
+整个函数讲的就是：获取一个字符串，对其进行处理（按字节取反），与特定内存区域比较，创建一个 Java 的 Boolean 对象，最后清理资源并返回该对象的引用。不过，memcmp 的结果未被使用。
+找到密文后进行取反操作就可以得到明文
+二者之间的差异
+]]></content>
+      <categories>
+        <category>Android逆向</category>
+      </categories>
+  </entry>
+  <entry>
     <title>OLLVM简单理解</title>
     <url>/2025/07/04/OLLVM%E7%AE%80%E5%8D%95%E7%90%86%E8%A7%A3/</url>
     <content><![CDATA[OLLVM简单理解OLLVM是什么？OLLVM 是一个基于 LLVM 编译器框架的开源代码混淆工具，旨在通过多种混淆技术增强程序的安全性，使逆向工程（反编译、反汇编）变得更加困难。
@@ -742,154 +945,6 @@ android &#123;    compileSdk 34              // 编译用的 SDK 版本    defau
       </categories>
   </entry>
   <entry>
-    <title>SM4加密原理解析</title>
-    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
-    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
-SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
-基础概念概览
-
-
-项目
-描述
-
-
-
-算法类型
-对称加密算法
-
-
-分组长度
-128 比特（16 字节）
-
-
-密钥长度
-128 比特（16 字节）
-
-
-轮数
-通常为32 轮
-
-
-主要结构
-Feistel 类似结构（实际上是非经典 Feistel）
-
-
-用途
-国密标准中的数据加密，WAPI 无线局域网等
-
-
-整体流程概览
-密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
-分组加密过程：
-将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
-
-每一轮：
-
-使用轮密钥和前四个字进行非线性变换，生成一个新的字；
-滑动更新 4 个字；
-
-
-加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
-
-
-
-解密流程：与加密几乎一样，仅轮密钥逆序使用。
-
-SM4算法的完整过程轮密钥扩展
-明文加密
-密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
-密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
-第一步：密钥与系统参数的异或
-
-初始常量：FK[0..3]
-
-FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
-
-
-系统参数 CK[0..31]：是固定的 32 个 32bit 常数
-
-CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
-
-过程：
-k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
-
-第二步：获取子密钥：
-
-初始密钥与 FK 异或，得 K[0..3]
-
-每一轮：
-
-
-K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
-
-其中 T&#39;() 是不同的线性变换（密钥扩展用）：
-T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
-
-函数T
-函数 T 的定义T(x) = L(τ(x))
-
-它由两部分组成：
-
-τ(x)：非线性变换，也称 S-box 变换。
-
-L(x)：线性变换，用于实现扩散。
-
-
-τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
-
-将这个 32 位 word 拆成 4 个字节。
-
-每个字节经过 S-box 替换（查表替换）。
-
-将替换后的 4 个字节重新组合成一个 32 位 word。
-
-
-L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
-L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
-
-明文加密处的线性变换 L：
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
-明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
-
-PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
-ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
-
-整体结构
-明文处理大致分解为3步：
-
-将128bit的明文分成4个32bit的字X1,X2,X3,X4。
-
-将上述得到的字进行32轮的轮操作。
-
-最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
-
-
-轮操作
-加密总体流程图
-明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
-
-
-将后三个4字节的明文与轮密钥进行异或，得到A
-
-将32 位 word 的 A 拆成 4 个字节进行S-box 替换
-
-L(x) — 线性扩散变换
-
-
-B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
-
-最后将首位4字节数据和C的输出进行异或
-X[i+4] = X[i] ^ C
-
-整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
-]]></content>
-      <categories>
-        <category>Windows逆向</category>
-      </categories>
-  </entry>
-  <entry>
     <title>初探Windows驱动逆向</title>
     <url>/2025/06/03/%E5%88%9D%E6%8E%A2WIndows%E9%A9%B1%E5%8A%A8%E9%80%86%E5%90%91/</url>
     <content><![CDATA[初探Windows逆向参考文章链接：
@@ -1149,130 +1204,148 @@ def spawn(cmd: str, _stdin: bytes) -&gt; float:    # 测量3次取最小值（�
       </categories>
   </entry>
   <entry>
-    <title>详谈RC5加密</title>
-    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
-    <content><![CDATA[参考文章：
-RC5
-RC5 分组密钥算法 C语言实现
-背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
-RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
-（1）明文块长可以是32、64或者128位（使用2个块）
-（2）密钥长度为0~2040位（指定了8位密钥的取值）
-RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
-RC5 算法流程概述
-分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
-输入：两个32-bit字 (A,B)
-密钥扩展：生成 2r+2 个32-bit子密钥
-加密轮数：r轮
+    <title>SM4加密原理解析</title>
+    <url>/2025/08/07/SM4%E5%8A%A0%E5%AF%86%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90/</url>
+    <content><![CDATA[参考文章：SM4算法过程密码学基础——SM4算法
+SM4算法介绍SM4 是一种中国国家密码算法标准，广泛应用于无线局域网产品中的数据加密保护。它是一个分组对称加密算法，类似于 AES 算法，但结构和细节不同。
+基础概念概览
+
+
+项目
+描述
+
+
+
+算法类型
+对称加密算法
+
+
+分组长度
+128 比特（16 字节）
+
+
+密钥长度
+128 比特（16 字节）
+
+
+轮数
+通常为32 轮
+
+
+主要结构
+Feistel 类似结构（实际上是非经典 Feistel）
+
+
+用途
+国密标准中的数据加密，WAPI 无线局域网等
+
+
+整体流程概览
+密钥扩展（密钥调度）：输入 128bit 的密钥，生成 32 个轮密钥（每个 32bit）。
+分组加密过程：
+将 128bit 明文分成 4 个 32bit 的字（X0, X1, X2, X3）；
 
 每一轮：
 
-A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
-B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
-
-解密就是逆过程。
-操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
-在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
-然后开始各轮，每一轮完成系列操作：
-（1）位异或运算；
-（2）循环左移；
-（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
-RC5 的工作原理，如下图所示：
-从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
-加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
-
-uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
-
-扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
-每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
-求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
-这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
-分步讲解：
-void generateSubkeys(uint8_t* K, uint32_t* S)
-
-将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
-
-示意：
-K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
-
-例如：
-K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
-
-初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
-
-这里用两个“幻数”：
-
-PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
-QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
-
-这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
-（% (1&lt;&lt;32)就是取2的32次方的mod）
-但这个代码里面没有，为什么呢？
-因为我用的是uint32_t类型
-
-在 C 语言里 uint32_t 类型是无符号32位整数。
-
-当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+使用轮密钥和前四个字进行非线性变换，生成一个新的字；
+滑动更新 4 个字；
 
 
-子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
-
-如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
-注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
-代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
-
-整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
-
-数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
-
-为什么要转化为小端序呢？大端序不行嘛？
-vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
-RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
-示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
+加密结果为最后 4 个字的逆序连接（Y0&#x3D; X35, Y1&#x3D; X34, Y2&#x3D; X33, Y3&#x3D; X32）；
 
 
-这些值是某一密钥对应的扩展值，但看不到 key。
 
-但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
+解密流程：与加密几乎一样，仅轮密钥逆序使用。
 
+SM4算法的完整过程轮密钥扩展
+明文加密
+密钥扩展算法术法说明加密密钥，SM4算法的加密密钥长度为128比特，将其分为四项，其中每一项都为为32位的字。表示为：系统参数。其中每一项都为32位的字。表示为：固定参数，用于密钥扩展算法。其中每一项都为32位的字。表示为：轮密钥，其中每一项都为32位的字。轮密钥由加密密钥通过密钥扩展算法生成。表示为：
+密钥扩展算法密钥扩展是从 128-bit 密钥中，派生出 32 个轮密钥 rk[0..31]。
+第一步：密钥与系统参数的异或
 
-魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
-示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
+初始常量：FK[0..3]
 
-其中
-seed = seed * 1103515245 + 12345;
-这一整行其实是一个经典的伪随机数算法：
-
-Linear Congruential Generator（线性同余生成器，LCG）
-
-其形式为：
-seed = (a * seed + c) % m
+FK[0]= 0xA3B1BAC6  FK[1] = 0x56AA3350  FK[2] = 0x677D9197  FK[3] = 0xB27022DC
 
 
-S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
+系统参数 CK[0..31]：是固定的 32 个 32bit 常数
 
-但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
+CK[0] = 0x00070E15,CK[1] = 0x1C232A31,CK[2] = 0x383F464D, CK[3]  = 0x545B6269,  CK[4] = 0x70777E85,CK[5] = 0x8C939AA1,CK[6] = 0xA8AFB6BD, CK[7] = 0xC4CBD2D9,  CK[8] = 0xE0E7EEF5,CK[9] = 0xFC030A11,CK[10] = 0x181F262D, CK[11] = 0x343B4249,  CK[12] = 0x50575E65,CK[13] = 0x6C737A81,CK[14] = 0x888F969D,CK[15] = 0xA4ABB2B9,  CK[16] = 0xC0C7CED5,CK[17] = 0xDCE3EAF1,CK[18] = 0xF8FF060D,CK[19] = 0x141B2229,  CK[20] = 0x30373E45,CK[21] = 0x4C535A61,CK[22] = 0x686F767D,CK[23] = 0x848B9299,  CK[24] = 0xA0A7AEB5,CK[25] = 0xBCC3CAD1,CK[26] = 0xD8DFE6ED,CK[27] = 0xF4FB0209,  CK[28] = 0x10171E25,CK[29] = 0x2C333A41,CK[30] = 0x484F565D,CK[31] = 0x646B7279
 
-有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
+过程：
+k[i] = (MK[i] ^ FK[i])  // i = 0,1,2,3
 
+第二步：获取子密钥：
 
-魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
-示例代码：
-uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
+初始密钥与 FK 异或，得 K[0..3]
 
-
-你需要在调试器里看到 data 具体内容，才能提取 key。
-有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
-
-魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
-void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
+每一轮：
 
 
-相当于只保留了部分轮数，或者所有轮都展开成常量。
+K[i+4] = K[i] ^ T&#x27;(K[i+1] ^ K[i+2] ^ K[i+3] ^ CK[i]) rk[i] = K[i+4]
 
-没有 key 也没有 S[]，你只能通过解密路径还原明文。
+其中 T&#39;() 是不同的线性变换（密钥扩展用）：
+T&#x27;(x) = L&#x27;(τ(x))，其中 L&#x27;(B) = B ^ (B &lt;&lt;&lt; 13) ^ (B &lt;&lt;&lt; 23) 与明文加密处不同
+
+函数T
+函数 T 的定义T(x) = L(τ(x))
+
+它由两部分组成：
+
+τ(x)：非线性变换，也称 S-box 变换。
+
+L(x)：线性变换，用于实现扩散。
 
 
+τ(x) — S-box 替换经过后3个字与固定参数异或后，得到的值A也为32位的字。
+
+将这个 32 位 word 拆成 4 个字节。
+
+每个字节经过 S-box 替换（查表替换）。
+
+将替换后的 4 个字节重新组合成一个 32 位 word。
+
+
+L(x) — 线性扩散变换这部分用于增强扩散效果（Avalanche Effect）：
+L&#x27;(b) = b ^ ROTL(b, 13) ^ ROTL(b, 23)//其中 ROTL(b, n) 表示 b 循环左移 n 位。
+
+明文加密处的线性变换 L：
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+将B与左移13位及左移23位的B进行异或处理作为函数T的输出C。
+明文处理填充规则明文不满16字节及16字节倍数，需要填充至16字节的倍数，如果已经是16字节倍数则填充一组16字节两种填充规则：
+
+PKCS7: 在明文末尾添加填充字节,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x06的字节，填充值16字节。
+ZERO: 在明文末尾添加填充0x0,填充字节的值等于填充的字节数。例如明文是 31323334353637383930 长度为10字节，则在末尾添加6个值为0x00的字节，填充值16字节。
+
+整体结构
+明文处理大致分解为3步：
+
+将128bit的明文分成4个32bit的字X1,X2,X3,X4。
+
+将上述得到的字进行32轮的轮操作。
+
+最后将进行过32轮操作的4个字进行反序变换后组成128bit的密文。
+
+
+轮操作
+加密总体流程图
+明文输入: 128-bit（16 字节）  ↓拆分成 4 个 32-bit 字: X[0], X[1], X[2], X[3]  ↓循环 32 次：    X[i+4] = F(X[i], X[i+1], X[i+2], X[i+3], rk[i])  ↓最终输出:    Y[0] = X[35]    Y[1] = X[34]    Y[2] = X[33]    Y[3] = X[32]组合为 128-bit 密文
+
+
+将后三个4字节的明文与轮密钥进行异或，得到A
+
+将32 位 word 的 A 拆成 4 个字节进行S-box 替换
+
+L(x) — 线性扩散变换
+
+
+B ^ (B &lt;&lt;&lt; 2) ^ (B &lt;&lt;&lt; 10) ^ (B &lt;&lt;&lt; 18) ^ (B &lt;&lt;&lt; 24)
+
+最后将首位4字节数据和C的输出进行异或
+X[i+4] = X[i] ^ C
+
+整体加解密算法实现#include &lt;stdint.h&gt;#include &lt;stdio.h&gt;#include &lt;string.h&gt;#define SM4_ROUNDS 32// S-boxstatic const uint8_t Sbox[256] = &#123;    0xd6, 0x90, 0xe9, 0xfe, 0xcc, 0xe1, 0x3d, 0xb7,    0x16, 0xb6, 0x14, 0xc2, 0x28, 0xfb, 0x2c, 0x05,    0x2b, 0x67, 0x9a, 0x76, 0x2a, 0xbe, 0x04, 0xc3,    0xaa, 0x44, 0x13, 0x26, 0x49, 0x86, 0x06, 0x99,    0x9c, 0x42, 0x50, 0xf4, 0x91, 0xef, 0x98, 0x7a,    0x33, 0x54, 0x0b, 0x43, 0xed, 0xcf, 0xac, 0x62,    0xe4, 0xb3, 0x1c, 0xa9, 0xc9, 0x08, 0xe8, 0x95,    0x80, 0xdf, 0x94, 0xfa, 0x75, 0x8f, 0x3f, 0xa6,    0x47, 0x07, 0xa7, 0xfc, 0xf3, 0x73, 0x17, 0xba,    0x83, 0x59, 0x3c, 0x19, 0xe6, 0x85, 0x4f, 0xa8,    0x68, 0x6b, 0x81, 0xb2, 0x71, 0x64, 0xda, 0x8b,    0xf8, 0xeb, 0x0f, 0x4b, 0x70, 0x56, 0x9d, 0x35,    0x1e, 0x24, 0x0e, 0x5e, 0x63, 0x58, 0xd1, 0xa2,    0x25, 0x22, 0x7c, 0x3b, 0x01, 0x21, 0x78, 0x87,    0xd4, 0x00, 0x46, 0x57, 0x9f, 0xd3, 0x27, 0x52,    0x4c, 0x36, 0x02, 0xe7, 0xa0, 0xc4, 0xc8, 0x9e,    0xea, 0xbf, 0x8a, 0xd2, 0x40, 0xc7, 0x38, 0xb5,    0xa3, 0xf7, 0xf2, 0xce, 0xf9, 0x61, 0x15, 0xa1,    0xe0, 0xae, 0x5d, 0xa4, 0x9b, 0x34, 0x1a, 0x55,    0xad, 0x93, 0x32, 0x30, 0xf5, 0x8c, 0xb1, 0xe3,    0x1d, 0xf6, 0xe2, 0x2e, 0x82, 0x66, 0xca, 0x60,    0xc0, 0x29, 0x23, 0xab, 0x0d, 0x53, 0x4e, 0x6f,    0xd5, 0xdb, 0x37, 0x45, 0xde, 0xfd, 0x8e, 0x2f,    0x03, 0xff, 0x6a, 0x72, 0x6d, 0x6c, 0x5b, 0x51,    0x8d, 0x1b, 0xaf, 0x92, 0xbb, 0xdd, 0xbc, 0x7f,    0x11, 0xd9, 0x5c, 0x41, 0x1f, 0x10, 0x5a, 0xd8,    0x0a, 0xc1, 0x31, 0x88, 0xa5, 0xcd, 0x7b, 0xbd,    0x2d, 0x74, 0xd0, 0x12, 0xb8, 0xe5, 0xb4, 0xb0,    0x89, 0x69, 0x97, 0x4a, 0x0c, 0x96, 0x77, 0x7e,    0x65, 0xb9, 0xf1, 0x09, 0xc5, 0x6e, 0xc6, 0x84,    0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20,    0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48&#125;;// 固定参数static const uint32_t FK[4] = &#123; 0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc &#125;;static const uint32_t CK[32] = &#123;    0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,    0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,    0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,    0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,    0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,    0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,    0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,    0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279&#125;;// 字节替换（非线性变换）static uint32_t tau(uint32_t A) &#123;    return (Sbox[(A &gt;&gt; 24) &amp; 0xFF] &lt;&lt; 24) |        (Sbox[(A &gt;&gt; 16) &amp; 0xFF] &lt;&lt; 16) |        (Sbox[(A &gt;&gt; 8) &amp; 0xFF] &lt;&lt; 8) |        (Sbox[A &amp; 0xFF]);&#125;// 线性变换 T (用于加密轮函数)static uint32_t T(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 2 | B &gt;&gt; (32 - 2)) ^ (B &lt;&lt; 10 | B &gt;&gt; (32 - 10)) ^        (B &lt;&lt; 18 | B &gt;&gt; (32 - 18)) ^ (B &lt;&lt; 24 | B &gt;&gt; (32 - 24));&#125;// 线性变换 T&#x27; (用于密钥扩展)static uint32_t T_key(uint32_t A) &#123;    uint32_t B = tau(A);    return B ^ (B &lt;&lt; 13 | B &gt;&gt; (32 - 13)) ^ (B &lt;&lt; 23 | B &gt;&gt; (32 - 23));&#125;// 密钥扩展void sm4_key_schedule(const uint8_t key[16], uint32_t rk[32], int forEncryption) &#123;    uint32_t K[36];    for (int i = 0; i &lt; 4; i++) &#123;        K[i] = ((uint32_t)key[4 * i] &lt;&lt; 24) | ((uint32_t)key[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)key[4 * i + 2] &lt;&lt; 8) | ((uint32_t)key[4 * i + 3]);        K[i] ^= FK[i];    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        K[i + 4] = K[i] ^ T_key(K[i + 1] ^ K[i + 2] ^ K[i + 3] ^ CK[i]);        rk[i] = K[i + 4];    &#125;    if (!forEncryption) &#123;        for (int i = 0; i &lt; 16; i++) &#123;            uint32_t temp = rk[i];            rk[i] = rk[31 - i];            rk[31 - i] = temp;        &#125;    &#125;&#125;// SM4 加解密主函数void sm4_crypt(const uint8_t in[16], uint8_t out[16], const uint32_t rk[32]) &#123;    uint32_t X[36];    for (int i = 0; i &lt; 4; i++) &#123;        X[i] = ((uint32_t)in[4 * i] &lt;&lt; 24) | ((uint32_t)in[4 * i + 1] &lt;&lt; 16) |            ((uint32_t)in[4 * i + 2] &lt;&lt; 8) | ((uint32_t)in[4 * i + 3]);    &#125;    for (int i = 0; i &lt; 32; i++) &#123;        X[i + 4] = X[i] ^ T(X[i + 1] ^ X[i + 2] ^ X[i + 3] ^ rk[i]);    &#125;    for (int i = 0; i &lt; 4; i++) &#123;        uint32_t t = X[35 - i];        out[4 * i + 0] = (t &gt;&gt; 24) &amp; 0xFF;        out[4 * i + 1] = (t &gt;&gt; 16) &amp; 0xFF;        out[4 * i + 2] = (t &gt;&gt; 8) &amp; 0xFF;        out[4 * i + 3] = t &amp; 0xFF;    &#125;&#125;// 示例int main() &#123;    uint8_t key[] = &quot;1234567887654321&quot;;    uint8_t plaintext[] = &quot;yyysparkyyyspark&quot;;    uint8_t ciphertext[16], decrypted[16];    uint32_t rk[32];    sm4_key_schedule(key, rk, 1);    sm4_crypt(plaintext, ciphertext, rk);    printf(&quot;Ciphertext: &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, ciphertext[i]);    printf(&quot;\n&quot;);    sm4_key_schedule(key, rk, 0);    sm4_crypt(ciphertext, decrypted, rk);    printf(&quot;Decrypted : &quot;);    for (int i = 0; i &lt; 16; i++) printf(&quot;%02X &quot;, decrypted[i]);    printf(&quot;\n&quot;);    for(int i = 0;i&lt;16;i++)    printf(&quot;%c&quot;, decrypted[i]);    return 0;&#125;
 ]]></content>
       <categories>
         <category>Windows逆向</category>
@@ -1448,6 +1521,136 @@ L3HCTF{ez_rust_reverse_lol}
 ]]></content>
       <categories>
         <category>各类比赛WP</category>
+      </categories>
+  </entry>
+  <entry>
+    <title>详谈RC5加密</title>
+    <url>/2025/07/17/%E8%AF%A6%E8%B0%88RC5%E5%8A%A0%E5%AF%86/</url>
+    <content><![CDATA[参考文章：
+RC5
+RC5 分组密钥算法 C语言实现
+背景与历史RC5是Ron Rivest开发的对称密钥块加密算法。RC5的主要特性是很快，只是用基本的计算机运算（加、异或、移位等），轮数可变，密钥位数可变，从而大大增加灵活性。需要不同安全性的应用程序可以相应设置这些值。RC5的另一个重要特性是执行所需的内存更少。
+RC5工作的基本原理RC5的字长（即输入明文块的长度）、轮数和密钥8位字节数都是可变的。一旦确认之后，这些值在执行特定的加密算法时保持不变。这些变量在执行特定的RC5实例之前是可变的，可以从取值范围中选择。而DES的块长只能是64位，密钥长度只能是56位；IDEA的块长只能是64位，密钥长度只能是128位。下表列出了RC5一些参数的取值范围：
+（1）明文块长可以是32、64或者128位（使用2个块）
+（2）密钥长度为0~2040位（指定了8位密钥的取值）
+RC5的输出是密文，与输入明文具有相同的参数。由于RC5算法的三个参数可以改变数值，因此RC5算法的特定实例记作RC5-w&#x2F;r&#x2F;b，其中w为字长（位），r为轮数，b为密钥的8位字节数。这样，RC5-32&#x2F;16&#x2F;16表示为RC5的块长为64位（注：RC5使用两个字块）、16轮加密和16字节密钥。Ron Rivest推荐的最低安全版本为RC5-32&#x2F;16&#x2F;16。
+RC5 算法流程概述
+分组大小：两个 w-bit（32-bit）字 &#x3D; 一共64位
+输入：两个32-bit字 (A,B)
+密钥扩展：生成 2r+2 个32-bit子密钥
+加密轮数：r轮
+
+每一轮：
+
+A &#x3D; ((A ⊕ B) &lt;&lt;&lt; B) + S[2i]
+B &#x3D; ((B ⊕ A) &lt;&lt;&lt; A) + S[2i+1]
+
+解密就是逆过程。
+操作原理(这边以RC5-32&#x2F;12&#x2F;16为例)由于使用上述记法，RC5初看起来比较复杂。首先介绍RC5的工作原理，为了便于理解RC5算法，假设输入明文块的长度为64位，其他块长的操作原理是一样的。
+在一次性初始操作中，输入明文块分成两个32位块A和B，前两个子密钥（稍后会介绍如何生成）S[0]和S[1]分别加进A和B，分别产生C和D，表示一次性操作结束。
+然后开始各轮，每一轮完成系列操作：
+（1）位异或运算；
+（2）循环左移；
+（3）对C和D增加下一个子密钥，先是加法运算，然后将结果用2的w次方求模（由于这里w&#x3D;32，因此为2的32次方）。
+RC5 的工作原理，如下图所示：
+从上图可以看出，初始操作有两步，然后是几轮操作，轮数可以取0~255。也可以从中看出，一个块的输出是另一个块的输入，是整个逻辑很难破译。
+加密代码如下：//循环位移操作#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))
+
+uint32_t A = in[0] + S[0];uint32_t B = in[1] + S[1];for (int i = 1; i &lt;= r; i++) &#123;    A = ROTL(A ^ B, B) + S[2 * i];    B = ROTL(B ^ A, A) + S[2 * i + 1];&#125;//in[2]是明文被分为2个块//ROTL是循环位移
+
+扩展密钥子密钥生成这一步使用两个常量P和Q。生成的子密钥数组称为S，第一个子密钥为S[0]用P值初始化。
+每个后续子密钥（S[1]，S[2]，…）根据前面的子密钥和常量Q求出，用2的32次方
+求模。这个过程要进行2(r+1)-1次，其中r位轮数。下图显示了子密钥生成的数学形式：
+这个过程把主密钥 K 扩展为 S[0..25] 子密钥。
+分步讲解：
+void generateSubkeys(uint8_t* K, uint32_t* S)
+
+将字节数组 K 转换成 4个32位整数 L[0..3]  uint32_t L[c] = &#123; 0 &#125;;// 将密钥转换为小端序的32位字  for (int i = 0; i &lt; b; i++) &#123;  L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (i % 4));  &#125;
+
+示意：
+K[0..15] --&gt; L[0..3]每4字节组合成一个32位整数
+
+例如：
+K[0]=0xAA K[1]=0xBB K[2]=0xCC K[3]=0xDDL[0]=0xDDCCBBAA
+
+初始化子密钥数组 S[0..25]S[0] = 0xB7E15163;for (int i = 1; i &lt; t; i++) &#123;    S[i] = S[i-1] + 0x9E3779B9;&#125;
+
+这里用两个“幻数”：
+
+PW &#x3D; 0xB7E15163 （2^w * (e - 2)）
+QW &#x3D; 0x9E3779B9 （2^w * (Golden Ratio - 1)） 这是RC5官方定义。
+
+这一部分按照原理来说的话应该是(S[i-1] + 0x9E3779B9)% (1&lt;&lt;32)   
+（% (1&lt;&lt;32)就是取2的32次方的mod）
+但这个代码里面没有，为什么呢？
+因为我用的是uint32_t类型
+
+在 C 语言里 uint32_t 类型是无符号32位整数。
+
+当超过 2^32 时，会自动溢出并回绕到模 2^32 的余数。
+
+
+子密钥混合子密钥混合阶段将子密钥S[]，S[]，…与原密钥L[]，L[]，…混合。其数学形式如下图所示：
+
+如上图所示，首先初始化i，j，A和B；其次将子密钥与A和B相加，并左移3位，赋给A和该子密钥，将原密钥与A和B相加，并左移A加B位，赋给B和该原密钥；最后，将i加1，并用2(r+1)求模，将j加1，并用c求模，循环3×n次结束。
+注：c是原密钥中最后一个子密钥部分，&lt;&lt;&lt;表示循环左移。
+代码实现uint32_t A = 0, B = 0;int i = 0, j = 0;for (int k = 0; k &lt; 3 * t; k++) &#123;    A = S[i] = ROTL(S[i] + A + B, 3);    B = L[j] = ROTL(L[j] + A + B, A + B);    i = (i + 1) % t;    j = (j + 1) % c;&#125;
+
+整体加解密代码实现（以RC5-32&#x2F;12&#x2F;16为例）#include &lt;stdio.h&gt;#include &lt;stdint.h&gt;#include &lt;math.h&gt;#define w 32            // 字长#define r 12            // 加密轮数#define b 16            // 密钥长度#define t (2 * r + 2)   // 子密钥数#define c (b * 8 / w)   // 主密钥分租数// 循环位移#define ROTL(x, y) (((x) &lt;&lt; ((y) &amp; (w - 1))) | ((x) &gt;&gt; (w - ((y) &amp; (w - 1)))))#define ROTR(x, y) (((x) &gt;&gt; ((y) &amp; (w - 1))) | ((x) &lt;&lt; (w - ((y) &amp; (w - 1)))))// 生成一个 16 字节 (128 位) 的密钥数组 K//void InitialKey(uint8_t* K)//&#123;//    K[0] = 3;//    for (int j = 1; j &lt; b; j++) &#123;//        K[j] = (uint8_t)((int)pow(3, j) % (255 - j));//    &#125;//&#125;// 密钥扩展void generateSubkeys(uint8_t* K, uint32_t* S)&#123;    uint32_t L[c] = &#123; 0 &#125;;    // 将密钥转换为大端序的32位字    for (int i = 0; i &lt; b; i++) &#123;        L[i / 4] |= ((uint32_t)K[i]) &lt;&lt; (8 * (3 - (i % 4)));    &#125;    // 子密钥生成    S[0] = 0xB7E15163;//常量Q，0x9E3779B9就是常量p    for (int i = 1; i &lt; t; i++) &#123;        S[i] = S[i - 1] + 0x9E3779B9;    &#125;    // 主，子密钥混合    uint32_t A = 0, B = 0;    int i = 0, j = 0;    for (int k = 0; k &lt; 3 * t; k++) &#123;        A = S[i] = ROTL(S[i] + A + B, 3);        B = L[j] = ROTL(L[j] + A + B, A + B);        i = (i + 1) % t;        j = (j + 1) % c;    &#125;&#125;// 加密函数void Encrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0] + S[0];    uint32_t B = in[1] + S[1];    for (int i = 1; i &lt;= r; i++) &#123;        A = ROTL(A ^ B, B) + S[2 * i];        B = ROTL(B ^ A, A) + S[2 * i + 1];    &#125;    out[0] = A;    out[1] = B;&#125;// 解密函数void Decrypt(uint32_t* in, uint32_t* out, uint32_t* S)&#123;    uint32_t A = in[0];    uint32_t B = in[1];    for (int i = r; i &gt;= 1; i--) &#123;        B = ROTR(B - S[2 * i + 1], A) ^ A;        A = ROTR(A - S[2 * i], B) ^ B;    &#125;    out[0] = A - S[0];    out[1] = B - S[1];&#125;int main()&#123;        uint8_t K[b] = &#123;1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2&#125;;    uint32_t S[t];    uint8_t plain[] = &quot;yyyspark&quot;;    uint32_t ciphertext[2];    uint32_t decrypted[2];    uint32_t plaintext[2];    // 将uint8_t类型明文转换为小端序的32位字，vs2022系统是采用小端序架构，这里统一处理字节序转换    for (int i = 0; i &lt; 2; i++) &#123;        plaintext[i] =            (plain[4 * i + 3] &lt;&lt; 24) |            (plain[4 * i + 2] &lt;&lt; 16) |            (plain[4 * i + 1] &lt;&lt; 8) |            plain[4 * i];    &#125;    generateSubkeys(K, S);    printf(&quot;Plaintext:   %08X %08X\n&quot;, plaintext[0], plaintext[1]);    // 加密    Encrypt(plaintext, ciphertext, S);    printf(&quot;Ciphertext:  %08X %08X\n&quot;, ciphertext[0], ciphertext[1]);    // 解密    Decrypt(ciphertext, decrypted, S);    printf(&quot;Decrypted:   %08X %08X\n&quot;, decrypted[0], decrypted[1]);    printf(&quot;%s&quot;, plaintext);    return 0;&#125;
+
+数据输入转化为小端序for (int i = 0; i &lt; 2; i++) &#123;    plaintext[i] =        (plain[4 * i + 3] &lt;&lt; 24) |        (plain[4 * i + 2] &lt;&lt; 16) |        (plain[4 * i + 1] &lt;&lt; 8) |        plain[4 * i];&#125;
+
+为什么要转化为小端序呢？大端序不行嘛？
+vs2022系统是采用小端序架构，这里统一处理字节序转换，不然字符串输出是按照内存里面的小端序输出
+RC5部分魔改方式魔改方式一：写死 S[] 常量绕过 密钥扩展，直接在代码里写死 S[] 的值。
+示例代码（以RC5-32&#x2F;12&#x2F;16为例）：uint32_t S[T] = &#123;    0xB7E15163, 0x5618CB1C, 0xF45044D5, 0x9287BE8E,    0x30BF3857, 0xCEF6B210, 0x6D2E2BC9, 0x0B65A582,    0xA99D1F3B, 0x47D498F4, 0xE60C12AD, 0x84338C66,    0x226B061F, 0xC0A27FD8, 0x5EDA0991, 0xFD11934A,    0x9B48ED03, 0x398066BC, 0xD7B7E075, 0x75EF5A2E,    0x1436D3E7, 0xB26E4DA0, 0x50A5C759, 0xEEDD4102,    0x8D14BAAB, 0x2B4C3464&#125;;
+
+
+这些值是某一密钥对应的扩展值，但看不到 key。
+
+但是解密者依旧可以直接利用S盒直接进行解密，建议将S盒藏在栈或者其他地方
+
+
+魔改方式二：使用伪随机数生成 S[]用 PRNG 伪随机生成 S[]，种子也可以隐藏在别处。
+示例代码：void generate_s_with_prng(uint32_t seed) &#123;    for (int i = 0; i &lt; T; ++i) &#123;        seed = seed * 1103515245 + 12345;        S[i] = seed ^ 0xDEADBEEF;    &#125;&#125;
+
+其中
+seed = seed * 1103515245 + 12345;
+这一整行其实是一个经典的伪随机数算法：
+
+Linear Congruential Generator（线性同余生成器，LCG）
+
+其形式为：
+seed = (a * seed + c) % m
+
+
+S[] 看起来是“乱数”，但如果你知道 seed 和算法，就能复现。
+
+但逆向时要花大量时间分析 PRNG 逻辑，可能隐藏在多个函数中。
+
+有时 PRNG 逻辑是经过混淆的，如乘数&#x2F;模数换成了奇怪的位运算。
+
+
+魔改方式三：key 藏在数据中运行时提取将 key（或 S[]）不直接写在代码中，而是藏在数据、输入或解密 blob 中。
+示例代码：
+uint32_t dynamic_key(uint8_t* key, int round, int offset) &#123;    int key_len = b;    uint32_t val = 0;    for (int i = 0; i &lt; 4; i++) &#123;        int index = (round * 2 + offset + i) % key_len;        val |= (key[index] &lt;&lt; (i * 8));    &#125;    return val;&#125;void Encrypt(uint32_t* in, uint32_t* out, uint8_t* Key)&#123;    uint32_t A = in[0];//没有进行相加    uint32_t B = in[1];    for (int i = 1; i &lt;= r; i++)    &#123;        uint32_t K1 = dynamic_key(Key, i, 0);        uint32_t K2 = dynamic_key(Key, i, 1);        A = ROTL(A ^ B, B) + K1;        B = ROTL(B ^ A, A) + K2;    &#125;    out[0] = A;    out[1] = B;&#125;
+
+
+你需要在调试器里看到 data 具体内容，才能提取 key。
+有时 key 会被 RC4 或 Base64 混淆，还要先解密才行。
+
+魔改方式四：固定的 RC5 解密逻辑，无 S盒 和 key将 RC5 的轮函数结果写死，作为“定值函数”。
+void fixed_rc5_decrypt(uint32_t *in, uint32_t *out) &#123;    uint32_t A = pt[0] + 0xB7E15163;    uint32_t B = pt[1] + 0x5618CB1C;    A = ((A ^ B) &lt;&lt; (B &amp; 0x1F)) + 0xF45044D5;    B = ((B ^ A) &lt;&lt; (A &amp; 0x1F)) + 0x9287BE8E;    out[0] = A;    out[1] = B;&#125;
+
+
+相当于只保留了部分轮数，或者所有轮都展开成常量。
+
+没有 key 也没有 S[]，你只能通过解密路径还原明文。
+
+
+]]></content>
+      <categories>
+        <category>Windows逆向</category>
       </categories>
   </entry>
 </search>
